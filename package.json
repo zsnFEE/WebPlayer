@@ -10,9 +10,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "vite": "^5.0.0",
-    "typescript": "^5.0.0",
-    "@types/web": "^0.0.118"
+    "vite": "^5.0.0"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.10",
