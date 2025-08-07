@@ -3,176 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebAV Player</title>
-    
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #000;
-            color: white;
-            overflow: hidden;
-        }
-        
-        .player-container {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .video-container {
-            flex: 1;
-            position: relative;
-            background: #000;
-        }
-        
-        #video-canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
-        
-        .controls {
-            height: 80px;
-            background: linear-gradient(transparent, rgba(0,0,0,0.8));
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            gap: 15px;
-        }
-        
-        .play-btn {
-            width: 40px;
-            height: 40px;
-            border: none;
-            background: rgba(255,255,255,0.1);
-            border-radius: 50%;
-            color: white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
-        }
-        
-        .play-btn:hover {
-            background: rgba(255,255,255,0.2);
-        }
-        
-        .progress-container {
-            flex: 1;
-            height: 6px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 3px;
-            position: relative;
-            cursor: pointer;
-        }
-        
-        .progress-bar {
-            height: 100%;
-            background: #007bff;
-            border-radius: 3px;
-            width: 0%;
-            transition: width 0.1s;
-        }
-        
-        .time-display {
-            color: rgba(255,255,255,0.8);
-            font-size: 14px;
-            min-width: 100px;
-        }
-        
-        .volume-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .volume-slider {
-            width: 80px;
-            height: 4px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 2px;
-            outline: none;
-            cursor: pointer;
-        }
-        
-        .speed-selector {
-            background: rgba(255,255,255,0.1);
-            border: none;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        .file-input {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(0,0,0,0.5);
-            padding: 10px;
-            border-radius: 8px;
-        }
-        
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            font-size: 18px;
-        }
-        
-        .hidden {
-            display: none;
-        }
-    </style>
+    <title>WebAV Player - 现代化音视频播放器</title>
+    <meta name="description" content="基于WebGPU、WebGL、AudioWorklet技术的现代化音视频播放器">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
 </head>
 <body>
-    <div class="player-container">
-        <div class="file-input">
-            <input type="file" id="file-input" accept="video/*,audio/*">
-            <label for="file-input">选择音视频文件</label>
+    <div class="player-container" id="player-container">
+        <!-- Header -->
+        <div class="player-header" id="player-header">
+            <div class="player-title">
+                🎬 WebAV Player
+            </div>
+            <div class="player-actions">
+                <div class="file-input-wrapper">
+                    <input type="file" id="file-input" class="file-input" accept="video/*,audio/*">
+                    <label for="file-input" class="file-input-label">
+                        <span class="file-input-icon">📁</span>
+                        选择媒体文件
+                    </label>
+                </div>
+            </div>
         </div>
-        
-        <div class="video-container">
+
+        <!-- Video Container -->
+        <div class="video-container" id="video-container">
             <canvas id="video-canvas"></canvas>
-            <div id="loading" class="loading hidden">加载中...</div>
+            
+            <!-- Loading State -->
+            <div id="loading" class="loading hidden">
+                <div class="loading-spinner"></div>
+                <div>加载中...</div>
+            </div>
         </div>
-        
-        <div class="controls">
-            <button id="play-btn" class="play-btn">▶</button>
+
+        <!-- Controls -->
+        <div class="controls" id="controls">
+            <!-- Primary Controls -->
+            <button id="play-btn" class="control-btn primary" title="播放/暂停">
+                <span id="play-icon">▶️</span>
+            </button>
             
+            <!-- Progress -->
             <div class="progress-container" id="progress-container">
-                <div class="progress-bar" id="progress-bar"></div>
+                <div class="progress-track">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
             </div>
             
-            <div class="time-display" id="time-display">00:00 / 00:00</div>
+            <!-- Time Display -->
+            <div class="time-display" id="time-display">
+                00:00 / 00:00
+            </div>
             
+            <!-- Volume -->
             <div class="volume-container">
-                <span>🔊</span>
-                <input type="range" id="volume-slider" class="volume-slider" min="0" max="100" value="100">
+                <span class="volume-icon" id="volume-icon">🔊</span>
+                <input type="range" 
+                       id="volume-slider" 
+                       class="volume-slider" 
+                       min="0" 
+                       max="100" 
+                       value="100"
+                       title="音量">
             </div>
             
-            <select id="speed-selector" class="speed-selector">
+            <!-- Speed -->
+            <select id="speed-selector" class="speed-selector" title="播放速度">
+                <option value="0.25">0.25x</option>
                 <option value="0.5">0.5x</option>
                 <option value="0.75">0.75x</option>
                 <option value="1" selected>1x</option>
                 <option value="1.25">1.25x</option>
                 <option value="1.5">1.5x</option>
+                <option value="1.75">1.75x</option>
                 <option value="2">2x</option>
             </select>
+            
+            <!-- Secondary Controls -->
+            <div class="controls-secondary">
+                <button id="fullscreen-btn" class="control-btn small" title="全屏">
+                    <span>⛶</span>
+                </button>
+            </div>
         </div>
     </div>
-    
+
     <!-- Webpack will inject scripts here -->
 </body>
 </html>

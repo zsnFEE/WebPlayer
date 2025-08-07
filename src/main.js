@@ -1,3 +1,6 @@
+// Import styles
+import './styles/main.css';
+
 // Webpack polyfills are handled in webpack.config.js
 import { WebAVPlayer } from './player.js';
 
@@ -19,12 +22,17 @@ class App {
     this.canvas = document.getElementById('video-canvas');
     this.fileInput = document.getElementById('file-input');
     this.playBtn = document.getElementById('play-btn');
+    this.playIcon = document.getElementById('play-icon');
     this.progressContainer = document.getElementById('progress-container');
     this.progressBar = document.getElementById('progress-bar');
     this.timeDisplay = document.getElementById('time-display');
     this.volumeSlider = document.getElementById('volume-slider');
+    this.volumeIcon = document.getElementById('volume-icon');
     this.speedSelector = document.getElementById('speed-selector');
+    this.fullscreenBtn = document.getElementById('fullscreen-btn');
     this.loading = document.getElementById('loading');
+    this.playerContainer = document.getElementById('player-container');
+    this.playerHeader = document.getElementById('player-header');
     
     // 验证关键元素是否存在
     if (!this.canvas) {
@@ -62,10 +70,24 @@ class App {
       this.setVolume(e.target.value / 100);
     });
 
+    // 音量图标点击切换静音
+    if (this.volumeIcon) {
+      this.volumeIcon.addEventListener('click', () => {
+        this.toggleMute();
+      });
+    }
+
     // 速度控制
     this.speedSelector.addEventListener('change', (e) => {
       this.setPlaybackRate(parseFloat(e.target.value));
     });
+
+    // 全屏控制
+    if (this.fullscreenBtn) {
+      this.fullscreenBtn.addEventListener('click', () => {
+        this.toggleFullscreen();
+      });
+    }
 
     // 键盘控制
     document.addEventListener('keydown', (e) => {
@@ -75,6 +97,21 @@ class App {
     // 窗口大小变化
     window.addEventListener('resize', () => {
       this.resizeCanvas();
+    });
+
+    // 鼠标移动控制UI显示/隐藏
+    let hideTimeout;
+    this.playerContainer.addEventListener('mousemove', () => {
+      this.showUI();
+      clearTimeout(hideTimeout);
+      hideTimeout = setTimeout(() => {
+        this.hideUI();
+      }, 3000);
+    });
+
+    // 双击全屏
+    this.canvas.addEventListener('dblclick', () => {
+      this.toggleFullscreen();
     });
   }
 
@@ -357,7 +394,11 @@ class App {
    * 更新播放按钮
    */
   updatePlayButton(playing) {
-    this.playBtn.textContent = playing ? '⏸' : '▶';
+    if (this.playIcon) {
+      this.playIcon.textContent = playing ? '⏸️' : '▶️';
+    } else {
+      this.playBtn.textContent = playing ? '⏸️' : '▶️';
+    }
   }
 
   /**
@@ -385,6 +426,57 @@ class App {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * 切换静音
+   */
+  toggleMute() {
+    if (this.player) {
+      const currentVolume = this.volumeSlider.value / 100;
+      if (currentVolume > 0) {
+        this.lastVolume = currentVolume;
+        this.setVolume(0);
+        this.volumeSlider.value = 0;
+        this.volumeIcon.textContent = '🔇';
+      } else {
+        const restoreVolume = this.lastVolume || 1;
+        this.setVolume(restoreVolume);
+        this.volumeSlider.value = restoreVolume * 100;
+        this.volumeIcon.textContent = '🔊';
+      }
+    }
+  }
+
+  /**
+   * 切换全屏
+   */
+  toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      this.playerContainer.requestFullscreen().catch(err => {
+        console.log(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  /**
+   * 显示UI
+   */
+  showUI() {
+    this.playerHeader.classList.remove('hidden');
+    this.playerContainer.style.cursor = 'default';
+  }
+
+  /**
+   * 隐藏UI
+   */
+  hideUI() {
+    if (document.fullscreenElement && this.player && this.player.isPlaying) {
+      this.playerHeader.classList.add('hidden');
+      this.playerContainer.style.cursor = 'none';
+    }
   }
 
   /**
