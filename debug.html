@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 播放器诊断</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            margin: 0;
+        }
+        .status { padding: 5px; margin: 5px 0; border-radius: 3px; }
+        .success { background: #2d5a2d; }
+        .error { background: #5a2d2d; }
+        .warning { background: #5a5a2d; }
+        .info { background: #2d2d5a; }
+        .log { 
+            background: #222; 
+            padding: 10px; 
+            border-radius: 5px; 
+            max-height: 300px; 
+            overflow-y: auto; 
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 播放器快速诊断</h1>
+    
+    <div id="checks"></div>
+    
+    <h3>测试文件播放</h3>
+    <input type="file" id="testFile" accept="video/*">
+    <button onclick="testBasicVideo()">测试基础HTML5播放</button>
+    <button onclick="clearLog()">清除日志</button>
+    
+    <video id="testVideo" controls style="width: 400px; margin: 10px 0; display: none;"></video>
+    
+    <h3>实时日志</h3>
+    <div id="log" class="log"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.textContent += `[${timestamp}] ${message}\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`[${type}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+        }
+
+        function addStatus(message, type) {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            document.getElementById('checks').appendChild(div);
+        }
+
+        // 基础检查
+        function runBasicChecks() {
+            log('=== 开始基础检查 ===');
+            
+            // 检查基本API
+            const checks = [
+                { name: 'HTML5 Video', test: () => !!document.createElement('video').canPlayType },
+                { name: 'Canvas 2D', test: () => !!document.createElement('canvas').getContext('2d') },
+                { name: 'WebGL', test: () => !!document.createElement('canvas').getContext('webgl') },
+                { name: 'WebGL2', test: () => !!document.createElement('canvas').getContext('webgl2') },
+                { name: 'WebGPU', test: () => !!navigator.gpu },
+                { name: 'AudioContext', test: () => !!(window.AudioContext || window.webkitAudioContext) },
+                { name: 'VideoDecoder', test: () => typeof VideoDecoder !== 'undefined' },
+                { name: 'AudioDecoder', test: () => typeof AudioDecoder !== 'undefined' },
+                { name: 'OffscreenCanvas', test: () => typeof OffscreenCanvas !== 'undefined' },
+                { name: 'SharedArrayBuffer', test: () => typeof SharedArrayBuffer !== 'undefined' },
+                { name: 'AudioWorklet', test: () => !!(window.AudioWorklet) },
+            ];
+
+            checks.forEach(({ name, test }) => {
+                try {
+                    const result = test();
+                    const status = result ? 'success' : 'error';
+                    const icon = result ? '✅' : '❌';
+                    addStatus(`${icon} ${name}`, status);
+                    log(`${name}: ${result ? '支持' : '不支持'}`, status);
+                } catch (error) {
+                    addStatus(`❌ ${name} (错误: ${error.message})`, 'error');
+                    log(`${name}: 检查出错 - ${error.message}`, 'error');
+                }
+            });
+
+            // 检查HTTPS
+            const isHTTPS = location.protocol === 'https:';
+            const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+            if (!isHTTPS && !isLocalhost) {
+                addStatus('⚠️ 非HTTPS环境，某些API可能受限', 'warning');
+                log('警告: 非HTTPS环境，WebCodecs等API可能不可用', 'warning');
+            } else {
+                addStatus('✅ 安全环境 (HTTPS/localhost)', 'success');
+                log('环境检查: 安全', 'success');
+            }
+
+            log('=== 基础检查完成 ===');
+        }
+
+        // 测试基础视频播放
+        function testBasicVideo() {
+            const fileInput = document.getElementById('testFile');
+            const video = document.getElementById('testVideo');
+            
+            if (!fileInput.files[0]) {
+                log('请先选择一个视频文件', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            log(`测试文件: ${file.name} (${(file.size/1024/1024).toFixed(2)}MB)`, 'info');
+            
+            try {
+                const url = URL.createObjectURL(file);
+                video.src = url;
+                video.style.display = 'block';
+                
+                video.onloadedmetadata = () => {
+                    log(`✅ 文件加载成功: ${video.videoWidth}x${video.videoHeight}, 时长: ${video.duration.toFixed(2)}s`, 'success');
+                    addStatus(`✅ HTML5视频播放正常`, 'success');
+                };
+                
+                video.onplay = () => {
+                    log('▶️ 视频开始播放', 'success');
+                };
+                
+                video.onpause = () => {
+                    log('⏸️ 视频暂停', 'info');
+                };
+                
+                video.onerror = (e) => {
+                    log(`❌ 视频播放错误: ${e.message || '未知错误'}`, 'error');
+                    addStatus(`❌ HTML5视频播放失败`, 'error');
+                };
+                
+                video.oncanplay = () => {
+                    log('✅ 视频可以播放', 'success');
+                };
+                
+            } catch (error) {
+                log(`创建视频URL失败: ${error.message}`, 'error');
+                addStatus(`❌ 文件URL创建失败`, 'error');
+            }
+        }
+
+        // 检查主播放器
+        async function checkMainPlayer() {
+            log('=== 检查主播放器状态 ===');
+            
+            try {
+                // 尝试访问主播放器
+                const response = await fetch('./');
+                if (response.ok) {
+                    log('✅ 主页面可访问', 'success');
+                    addStatus('✅ 主页面正常', 'success');
+                } else {
+                    log(`❌ 主页面访问失败: ${response.status}`, 'error');
+                    addStatus('❌ 主页面访问失败', 'error');
+                }
+            } catch (error) {
+                log(`主页面检查错误: ${error.message}`, 'error');
+                addStatus('❌ 主页面检查失败', 'error');
+            }
+            
+            // 检查是否在正确端口
+            const currentPort = location.port;
+            if (currentPort !== '9000') {
+                log(`⚠️ 当前端口: ${currentPort || '默认'}, 推荐端口: 9000`, 'warning');
+                addStatus('⚠️ 端口可能不正确', 'warning');
+            } else {
+                log('✅ 端口正确: 9000', 'success');
+                addStatus('✅ 端口正确', 'success');
+            }
+        }
+
+        // 页面加载完成后自动运行检查
+        document.addEventListener('DOMContentLoaded', () => {
+            log('播放器诊断工具启动', 'info');
+            runBasicChecks();
+            checkMainPlayer();
+            
+            // 添加建议
+            setTimeout(() => {
+                log('\n=== 诊断建议 ===', 'info');
+                log('1. 确保在Chrome 94+或Edge 94+浏览器中运行', 'info');
+                log('2. 使用 npm run dev 启动开发服务器', 'info');
+                log('3. 访问 http://localhost:9000', 'info');
+                log('4. 如果基础HTML5播放正常，问题可能在WebCodecs/WebGPU初始化', 'info');
+                log('5. 查看浏览器Console是否有错误信息', 'info');
+            }, 1000);
+        });
+
+        // 全局错误捕获
+        window.addEventListener('error', (e) => {
+            log(`全局错误: ${e.message} (${e.filename}:${e.lineno})`, 'error');
+        });
+    </script>
+</body>
+</html>

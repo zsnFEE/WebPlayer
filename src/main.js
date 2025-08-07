@@ -331,6 +331,16 @@ class App {
         };
         console.log('Player state:', state);
         console.log('✅ [App] State check completed successfully');
+        
+        // 临时修复：如果onMediaReady没有被触发，5秒后强制启用控件
+        setTimeout(() => {
+          if (this.playBtn.disabled) {
+            console.log('🔧 [App] onMediaReady未触发，强制启用控件');
+            this.hideLoading();
+            this.enableControls();
+          }
+        }, 5000);
+        
       } catch (error) {
         console.error('❌ [App] Error checking player state:', error);
       }

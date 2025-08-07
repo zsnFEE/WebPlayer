@@ -572,40 +572,7 @@ export class WebAVPlayer {
     }
   }
 
-  /**
-   * 处理媒体就绪
-   */
-  async handleMediaReady(info) {
-    this.mediaInfo = info;
-    this.duration = info.duration;
-    
-    console.log('Media ready:', info);
-    
-    if (this.onDurationChange) {
-      this.onDurationChange(this.duration);
-    }
-
-    // 初始化解码器
-    try {
-      if (info.hasVideo && this.decoder instanceof WebCodecsDecoder) {
-        const videoConfig = this.parser.getVideoDecoderConfig();
-        if (videoConfig) {
-          await this.decoder.initVideoDecoder(videoConfig);
-        }
-      }
-      
-      if (info.hasAudio && this.decoder instanceof WebCodecsDecoder) {
-        const audioConfig = this.parser.getAudioDecoderConfig();
-        if (audioConfig) {
-          await this.decoder.initAudioDecoder(audioConfig);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to initialize decoders:', error);
-    }
-    
-    this.setLoading(false);
-  }
+  // 删除重复的handleMediaReady方法 - 使用增强版本
 
   /**
    * 处理样本数据
@@ -1147,6 +1114,7 @@ export class WebAVPlayer {
   getState() {
     return {
       isPlaying: this.isPlaying,
+      playing: this.isPlaying, // 添加playing别名以兼容UI代码
       currentTime: this.currentTime,
       duration: this.duration,
       volume: this.volume,
@@ -1157,7 +1125,11 @@ export class WebAVPlayer {
       audioChannels: this.audioChannels,
       channelLayout: this.channelLayout,
       surroundSound: this.surroundSound,
-      stats: this.stats
+      stats: this.stats,
+      mediaInfo: this.mediaInfo, // 添加mediaInfo以供UI检查
+      hasDecoder: !!this.decoder,
+      hasRenderer: !!this.renderer,
+      hasParser: !!this.parser
     };
   }
 
