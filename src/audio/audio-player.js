@@ -27,8 +27,9 @@ export class AudioPlayer {
         await this.audioContext.resume();
       }
 
-      // 加载AudioWorklet处理器
-      await this.audioContext.audioWorklet.addModule('/src/audio/audio-worklet-processor.js');
+      // 加载AudioWorklet处理器 - 使用绝对路径
+      const workletUrl = new URL('/src/audio/audio-worklet-processor.js', window.location.origin);
+      await this.audioContext.audioWorklet.addModule(workletUrl);
       
       // 创建AudioWorkletNode
       this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-worklet-processor', {

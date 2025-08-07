@@ -70,13 +70,27 @@ export class WebAVPlayer {
       // 设置音频播放器回调
       this.setupAudioCallbacks();
       
-      console.log('WebAV Player initialized');
+      console.log('WebAV Player initialized successfully');
       
     } catch (error) {
       console.error('Failed to initialize player:', error);
-      if (this.onError) {
-        this.onError(error);
+      
+      // 尝试提供有用的错误信息
+      let errorMessage = 'Failed to initialize player';
+      
+      if (error.message.includes('WebGPU') && error.message.includes('WebGL')) {
+        errorMessage = 'No supported rendering engine found. Please use a modern browser.';
+      } else if (error.message.includes('AudioWorklet')) {
+        errorMessage = 'Audio initialization failed. Please check browser audio permissions.';
+      } else if (error.message.includes('decoder')) {
+        errorMessage = 'Video decoder initialization failed. Some codecs may not be supported.';
       }
+      
+      if (this.onError) {
+        this.onError(new Error(errorMessage));
+      }
+      
+      throw error;
     }
   }
 
@@ -108,11 +122,21 @@ export class WebAVPlayer {
    * 初始化解码器
    */
   async initDecoder() {
+    let webcodecsError = null;
+    let ffmpegError = null;
+    
     try {
       // 尝试使用WebCodecs
       this.decoder = new WebCodecsDecoder();
+      
+      // WebCodecs解码器不需要async初始化，但需要检查支持
+      if (!this.decoder.isVideoSupported && !this.decoder.isAudioSupported) {
+        throw new Error('WebCodecs not supported for video or audio');
+      }
+      
       console.log('Using WebCodecs decoder');
     } catch (error) {
+      webcodecsError = error;
       console.warn('WebCodecs failed, falling back to FFmpeg:', error);
       
       try {
@@ -122,7 +146,13 @@ export class WebAVPlayer {
         console.log('Using FFmpeg decoder');
       } catch (ffmpegError) {
         console.error('Both WebCodecs and FFmpeg failed:', ffmpegError);
-        throw new Error('No supported decoder available');
+        
+        // 如果两个都失败了，抛出更详细的错误
+        const detailedError = new Error(
+          `No supported decoder available. WebCodecs: ${webcodecsError?.message || 'not supported'}. FFmpeg: ${ffmpegError?.message || 'failed to load'}`
+        );
+        
+        throw detailedError;
       }
     }
     

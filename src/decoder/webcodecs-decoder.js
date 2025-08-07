@@ -5,12 +5,31 @@ export class WebCodecsDecoder {
   constructor() {
     this.videoDecoder = null;
     this.audioDecoder = null;
-    this.isVideoSupported = 'VideoDecoder' in window;
-    this.isAudioSupported = 'AudioDecoder' in window;
+    this.isVideoSupported = this.checkVideoCodecsSupport();
+    this.isAudioSupported = this.checkAudioCodecsSupport();
     this.videoQueue = [];
     this.audioQueue = [];
     this.onVideoFrame = null;
     this.onAudioFrame = null;
+  }
+
+  /**
+   * 检查 WebCodecs 支持
+   */
+  checkVideoCodecsSupport() {
+    try {
+      return typeof VideoDecoder !== 'undefined' && 'VideoDecoder' in window;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  checkAudioCodecsSupport() {
+    try {
+      return typeof AudioDecoder !== 'undefined' && 'AudioDecoder' in window;
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
@@ -32,7 +51,8 @@ export class WebCodecsDecoder {
         const videoSupport = await VideoDecoder.isConfigSupported(videoConfig);
         support.video = videoSupport.supported;
       } catch (error) {
-        console.warn('Video codec not supported:', videoCodec);
+        console.warn('Video codec not supported:', videoCodec, error);
+        support.video = false;
       }
     }
 
@@ -46,7 +66,8 @@ export class WebCodecsDecoder {
         const audioSupport = await AudioDecoder.isConfigSupported(audioConfig);
         support.audio = audioSupport.supported;
       } catch (error) {
-        console.warn('Audio codec not supported:', audioCodec);
+        console.warn('Audio codec not supported:', audioCodec, error);
+        support.audio = false;
       }
     }
 
@@ -110,22 +131,40 @@ export class WebCodecsDecoder {
    */
   handleVideoFrame(frame) {
     if (this.onVideoFrame) {
-      // 将VideoFrame转换为ImageData
-      const canvas = new OffscreenCanvas(frame.displayWidth, frame.displayHeight);
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(frame, 0, 0);
-      
-      const imageData = ctx.getImageData(0, 0, frame.displayWidth, frame.displayHeight);
-      
-      this.onVideoFrame({
-        data: imageData.data,
-        width: frame.displayWidth,
-        height: frame.displayHeight,
-        timestamp: frame.timestamp / 1000000 // 转换为秒
-      });
+      try {
+        // 尝试使用 OffscreenCanvas，如果不支持则使用普通 Canvas
+        let canvas, ctx;
+        
+        if (typeof OffscreenCanvas !== 'undefined') {
+          canvas = new OffscreenCanvas(frame.displayWidth, frame.displayHeight);
+          ctx = canvas.getContext('2d');
+        } else {
+          // 后备方案：使用文档中的 canvas 元素
+          canvas = document.createElement('canvas');
+          canvas.width = frame.displayWidth;
+          canvas.height = frame.displayHeight;
+          ctx = canvas.getContext('2d');
+        }
+        
+        ctx.drawImage(frame, 0, 0);
+        const imageData = ctx.getImageData(0, 0, frame.displayWidth, frame.displayHeight);
+        
+        this.onVideoFrame({
+          imageData: imageData,
+          width: frame.displayWidth,
+          height: frame.displayHeight,
+          timestamp: frame.timestamp
+        });
+        
+        // 清理VideoFrame资源
+        frame.close();
+      } catch (error) {
+        console.error('Error handling video frame:', error);
+        frame.close();
+      }
+    } else {
+      frame.close();
     }
-    
-    frame.close();
   }
 
   /**

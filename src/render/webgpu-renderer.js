@@ -8,7 +8,18 @@ export class WebGPURenderer {
     this.context = null;
     this.pipeline = null;
     this.isInitialized = false;
-    this.isSupported = 'gpu' in navigator;
+    this.isSupported = this.checkWebGPUSupport();
+  }
+
+  /**
+   * 检查WebGPU支持
+   */
+  checkWebGPUSupport() {
+    try {
+      return 'gpu' in navigator && typeof navigator.gpu !== 'undefined';
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
@@ -16,33 +27,55 @@ export class WebGPURenderer {
    */
   async init() {
     if (!this.isSupported) {
-      throw new Error('WebGPU not supported');
+      throw new Error('WebGPU not supported in this browser');
     }
 
     try {
       // 获取GPU适配器
-      const adapter = await navigator.gpu.requestAdapter();
+      const adapter = await navigator.gpu?.requestAdapter({
+        powerPreference: 'high-performance'
+      });
+      
       if (!adapter) {
-        throw new Error('No appropriate GPUAdapter found');
+        throw new Error('No appropriate GPUAdapter found. This may be due to hardware limitations or WebGPU not being enabled.');
       }
 
+      // 检查必要的特性
+      const requiredFeatures = [];
+      const requiredLimits = {};
+
       // 获取设备
-      this.device = await adapter.requestDevice();
+      this.device = await adapter.requestDevice({
+        requiredFeatures,
+        requiredLimits
+      });
+      
+      // 设置设备错误处理
+      this.device.addEventListener('uncapturederror', (event) => {
+        console.error('WebGPU uncaptured error:', event.error);
+      });
       
       // 配置画布上下文
       this.context = this.canvas.getContext('webgpu');
+      
+      if (!this.context) {
+        throw new Error('Failed to get WebGPU context from canvas');
+      }
+      
       const canvasFormat = navigator.gpu.getPreferredCanvasFormat();
       
       this.context.configure({
         device: this.device,
         format: canvasFormat,
+        alphaMode: 'premultiplied'
       });
 
       // 创建渲染管线
       await this.createRenderPipeline(canvasFormat);
       
       this.isInitialized = true;
-      console.log('WebGPU renderer initialized');
+      console.log('WebGPU renderer initialized successfully');
+      
     } catch (error) {
       console.error('Failed to initialize WebGPU:', error);
       throw error;

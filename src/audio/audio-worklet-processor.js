@@ -1,7 +1,7 @@
 /**
  * AudioWorklet 音频处理器
  */
-class AudioWorkletProcessor extends AudioWorkletProcessor {
+class WebAVAudioProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     
@@ -22,7 +22,7 @@ class AudioWorkletProcessor extends AudioWorkletProcessor {
       this.handleMessage(event.data);
     };
     
-    console.log('AudioWorkletProcessor initialized');
+    console.log('WebAVAudioProcessor initialized');
   }
 
   /**
@@ -177,4 +177,5 @@ class AudioWorkletProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('audio-worklet-processor', AudioWorkletProcessor);
+// 注册AudioWorklet处理器
+registerProcessor('audio-worklet-processor', WebAVAudioProcessor);

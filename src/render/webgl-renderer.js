@@ -15,10 +15,29 @@ export class WebGLRenderer {
    */
   async init() {
     try {
-      this.gl = this.canvas.getContext('webgl2') || this.canvas.getContext('webgl');
+      // 尝试获取WebGL2，如果失败则降级到WebGL1
+      this.gl = this.canvas.getContext('webgl2', {
+        alpha: false,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        preserveDrawingBuffer: false
+      }) || this.canvas.getContext('webgl', {
+        alpha: false,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        preserveDrawingBuffer: false
+      });
+      
       if (!this.gl) {
-        throw new Error('WebGL not supported');
+        throw new Error('WebGL not supported in this browser. Please use a modern browser with WebGL support.');
       }
+
+      console.log(`Using ${this.gl instanceof WebGL2RenderingContext ? 'WebGL2' : 'WebGL1'}`);
+
+      // 设置视口
+      this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
 
       // 创建着色器程序
       this.createShaderProgram();
@@ -30,7 +49,8 @@ export class WebGLRenderer {
       this.createTexture();
       
       this.isInitialized = true;
-      console.log('WebGL renderer initialized');
+      console.log('WebGL renderer initialized successfully');
+      
     } catch (error) {
       console.error('Failed to initialize WebGL:', error);
       throw error;

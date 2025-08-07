@@ -86,30 +86,98 @@ class App {
       };
       
       this.player.onLoadStart = () => {
-        this.showLoading(true);
+        this.showLoading();
       };
       
       this.player.onLoadEnd = () => {
-        this.showLoading(false);
-      };
-      
-      this.player.onError = (error) => {
-        this.showError(error);
+        this.hideLoading();
       };
       
       this.player.onPlayStateChange = (playing) => {
         this.updatePlayButton(playing);
       };
       
-      // 调整画布大小
-      this.resizeCanvas();
+      this.player.onError = (error) => {
+        this.handleError(error);
+      };
       
-      console.log('App initialized');
+      console.log('App initialized successfully');
       
     } catch (error) {
       console.error('Failed to initialize app:', error);
-      this.showError(error);
+      this.handleError(error);
     }
+  }
+
+  /**
+   * 处理错误
+   */
+  handleError(error) {
+    console.error('Player error:', error);
+    
+    // 显示用户友好的错误信息
+    let userMessage = '播放器初始化失败';
+    
+    if (error.message.includes('AudioContext') || error.message.includes('audio')) {
+      userMessage = '音频初始化失败，请点击页面任意位置后重试';
+      
+      // 添加点击监听器以在用户交互后重新初始化音频
+      const retryAudio = async () => {
+        try {
+          if (this.player && this.player.audioPlayer) {
+            await this.player.audioPlayer.init();
+            document.removeEventListener('click', retryAudio);
+            console.log('Audio context resumed after user interaction');
+          }
+        } catch (retryError) {
+          console.error('Failed to retry audio initialization:', retryError);
+        }
+      };
+      
+      document.addEventListener('click', retryAudio, { once: true });
+    } else if (error.message.includes('WebGPU') || error.message.includes('WebGL')) {
+      userMessage = '图形渲染初始化失败，请使用支持现代Web标准的浏览器';
+    } else if (error.message.includes('decoder')) {
+      userMessage = '视频解码器初始化失败，某些格式可能不被支持';
+    }
+    
+    this.showError(userMessage);
+  }
+
+  /**
+   * 显示错误信息
+   */
+  showError(message) {
+    // 创建错误提示元素
+    let errorElement = document.getElementById('error-message');
+    if (!errorElement) {
+      errorElement = document.createElement('div');
+      errorElement.id = 'error-message';
+      errorElement.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(255, 0, 0, 0.8);
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        max-width: 400px;
+        text-align: center;
+        z-index: 1000;
+      `;
+      document.body.appendChild(errorElement);
+    }
+    
+    errorElement.textContent = message;
+    errorElement.classList.remove('hidden');
+    
+    // 5秒后自动隐藏
+    setTimeout(() => {
+      if (errorElement) {
+        errorElement.classList.add('hidden');
+      }
+    }, 5000);
   }
 
   /**
@@ -291,11 +359,10 @@ class App {
   }
 
   /**
-   * 显示错误
+   * 隐藏加载状态
    */
-  showError(error) {
-    console.error('Player error:', error);
-    alert(`播放器错误: ${error.message || error}`);
+  hideLoading() {
+    this.loading.classList.add('hidden');
   }
 
   /**
