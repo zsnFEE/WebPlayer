@@ -271,6 +271,11 @@ export class WebAVPlayer {
       isStreaming: this.isStreaming,
       audioChannels: this.audioChannels
     });
+
+    // 触发媒体就绪回调
+    if (this.onMediaReady) {
+      this.onMediaReady();
+    }
   }
 
   /**

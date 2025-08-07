@@ -21,6 +21,8 @@ class App {
   initializeElements() {
     this.canvas = document.getElementById('video-canvas');
     this.fileInput = document.getElementById('file-input');
+    this.urlInput = document.getElementById('url-input');
+    this.loadUrlBtn = document.getElementById('load-url-btn');
     this.playBtn = document.getElementById('play-btn');
     this.playIcon = document.getElementById('play-icon');
     this.progressContainer = document.getElementById('progress-container');
@@ -54,6 +56,29 @@ class App {
         this.loadFile(file);
       }
     });
+
+    // URL加载按钮
+    if (this.loadUrlBtn) {
+      this.loadUrlBtn.addEventListener('click', () => {
+        this.loadURL();
+      });
+    }
+
+    // URL输入框回车键
+    if (this.urlInput) {
+      this.urlInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          this.loadURL();
+        }
+      });
+      
+      // URL输入框变化时启用/禁用按钮
+      this.urlInput.addEventListener('input', (e) => {
+        if (this.loadUrlBtn) {
+          this.loadUrlBtn.disabled = !e.target.value.trim();
+        }
+      });
+    }
 
     // 播放/暂停按钮
     this.playBtn.addEventListener('click', () => {
@@ -146,6 +171,13 @@ class App {
       
       this.player.onError = (error) => {
         this.handleError(error);
+      };
+
+      // 媒体加载完成后的回调
+      this.player.onMediaReady = () => {
+        this.hideLoading();
+        this.enableControls();
+        console.log('Media ready, controls enabled');
       };
       
       console.log('WebAV Player initialized successfully');
@@ -240,6 +272,7 @@ class App {
     try {
       console.log('Loading file:', file.name, 'Size:', file.size, 'Type:', file.type);
       this.showLoading();
+      this.disableControls();
       await this.player.loadFile(file);
       console.log('File loaded successfully:', file.name);
     } catch (error) {
@@ -252,6 +285,48 @@ class App {
         userMessage = '文件格式不支持或文件已损坏，请选择有效的MP4视频文件';
       } else if (error.message.includes('MP4Box')) {
         userMessage = 'MP4解析器初始化失败，请刷新页面重试';
+      }
+      
+      this.showError(userMessage);
+    }
+  }
+
+  /**
+   * 加载网络视频
+   */
+  async loadURL() {
+    if (!this.player) {
+      this.showError('播放器未初始化');
+      return;
+    }
+
+    const url = this.urlInput.value.trim();
+    if (!url) {
+      this.showError('请输入有效的视频URL地址');
+      return;
+    }
+
+    try {
+      console.log('Loading URL:', url);
+      this.showLoading();
+      this.disableControls();
+      this.loadUrlBtn.disabled = true;
+      
+      await this.player.loadFile(url);
+      console.log('URL loaded successfully:', url);
+    } catch (error) {
+      console.error('Failed to load URL:', error);
+      this.hideLoading();
+      this.loadUrlBtn.disabled = false;
+      
+      // 提供更友好的错误信息
+      let userMessage = `网络视频加载失败: ${error.message}`;
+      if (error.message.includes('HTTP')) {
+        userMessage = '无法访问该视频地址，请检查URL是否正确或网络连接';
+      } else if (error.message.includes('CORS')) {
+        userMessage = '该视频地址不允许跨域访问，请尝试其他视频源';
+      } else if (error.message.includes('appendBuffer')) {
+        userMessage = '视频格式不支持，请尝试MP4格式的视频地址';
       }
       
       this.showError(userMessage);
@@ -432,6 +507,35 @@ class App {
    */
   hideLoading() {
     this.loading.classList.add('hidden');
+  }
+
+  /**
+   * 启用控件
+   */
+  enableControls() {
+    this.playBtn.disabled = false;
+    this.progressContainer.style.pointerEvents = 'auto';
+    this.volumeSlider.disabled = false;
+    this.speedSelector.disabled = false;
+    if (this.fullscreenBtn) {
+      this.fullscreenBtn.disabled = false;
+    }
+    if (this.loadUrlBtn) {
+      this.loadUrlBtn.disabled = !this.urlInput.value.trim();
+    }
+  }
+
+  /**
+   * 禁用控件
+   */
+  disableControls() {
+    this.playBtn.disabled = true;
+    this.progressContainer.style.pointerEvents = 'none';
+    this.volumeSlider.disabled = true;
+    this.speedSelector.disabled = true;
+    if (this.fullscreenBtn) {
+      this.fullscreenBtn.disabled = true;
+    }
   }
 
   /**
