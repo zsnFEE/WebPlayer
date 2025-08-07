@@ -120,6 +120,7 @@ class App {
    */
   async initializePlayer() {
     try {
+      console.log('Initializing WebAV Player...');
       this.player = new WebAVPlayer(this.canvas);
       
       // 设置播放器事件回调
@@ -147,11 +148,12 @@ class App {
         this.handleError(error);
       };
       
-      console.log('App initialized successfully');
+      console.log('WebAV Player initialized successfully');
       
     } catch (error) {
-      console.error('Failed to initialize app:', error);
+      console.error('Failed to initialize WebAV Player:', error);
       this.handleError(error);
+      throw error; // Re-throw to prevent further execution
     }
   }
 
@@ -230,12 +232,29 @@ class App {
    * 加载文件
    */
   async loadFile(file) {
+    if (!this.player) {
+      this.showError('播放器未初始化');
+      return;
+    }
+
     try {
+      console.log('Loading file:', file.name, 'Size:', file.size, 'Type:', file.type);
+      this.showLoading();
       await this.player.loadFile(file);
-      console.log('File loaded:', file.name);
+      console.log('File loaded successfully:', file.name);
     } catch (error) {
       console.error('Failed to load file:', error);
-      this.showError(error);
+      this.hideLoading();
+      
+      // 提供更友好的错误信息
+      let userMessage = `文件加载失败: ${error.message}`;
+      if (error.message.includes('appendBuffer')) {
+        userMessage = '文件格式不支持或文件已损坏，请选择有效的MP4视频文件';
+      } else if (error.message.includes('MP4Box')) {
+        userMessage = 'MP4解析器初始化失败，请刷新页面重试';
+      }
+      
+      this.showError(userMessage);
     }
   }
 

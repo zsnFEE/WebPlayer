@@ -401,9 +401,17 @@ export class WebAVPlayer {
    * 加载本地文件
    */
   async loadLocalFile(file) {
-    const arrayBuffer = await file.arrayBuffer();
-    this.parser.appendBuffer(arrayBuffer);
-    this.parser.start();
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      await this.parser.appendBuffer(arrayBuffer);
+      this.parser.start();
+    } catch (error) {
+      console.error('Failed to load local file:', error);
+      if (this.onError) {
+        this.onError(error);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -424,7 +432,7 @@ export class WebAVPlayer {
         if (done) break;
         
         // 流式添加数据
-        this.parser.appendBuffer(value.buffer);
+        await this.parser.appendBuffer(value.buffer);
         
         // 如果还没开始，尝试开始解析
         if (!this.parser.isInitialized && this.parser.info) {

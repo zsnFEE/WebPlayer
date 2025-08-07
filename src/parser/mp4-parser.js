@@ -4,11 +4,20 @@ let MP4Box = null;
 async function getMP4Box() {
   if (!MP4Box) {
     try {
+      console.log('Loading MP4Box library...');
       const mp4boxModule = await import('mp4box');
       MP4Box = mp4boxModule.default || mp4boxModule;
+      
+      // 验证MP4Box对象
+      if (!MP4Box || typeof MP4Box.createFile !== 'function') {
+        throw new Error('MP4Box library does not have required methods');
+      }
+      
+      console.log('MP4Box library loaded successfully');
     } catch (error) {
       console.error('Failed to load MP4Box:', error);
-      throw new Error('MP4Box is required for video parsing');
+      MP4Box = null; // 重置以便重试
+      throw new Error(`MP4Box is required for video parsing: ${error.message}`);
     }
   }
   return MP4Box;
@@ -47,9 +56,25 @@ export class MP4Parser {
    */
   async init() {
     try {
+      // 如果已经初始化，直接返回
+      if (this.mp4boxfile) {
+        return;
+      }
+
       // 动态加载MP4Box
       const MP4BoxLib = await getMP4Box();
+      
+      // 确保MP4Box库加载成功
+      if (!MP4BoxLib || typeof MP4BoxLib.createFile !== 'function') {
+        throw new Error('MP4Box library not properly loaded');
+      }
+      
       this.mp4boxfile = MP4BoxLib.createFile();
+      
+      // 验证mp4boxfile创建成功
+      if (!this.mp4boxfile) {
+        throw new Error('Failed to create MP4Box file instance');
+      }
       
       // 监听信息解析完成
       this.mp4boxfile.onReady = (info) => {
@@ -76,6 +101,10 @@ export class MP4Parser {
       
     } catch (error) {
       console.error('Failed to initialize MP4 parser:', error);
+      this.mp4boxfile = null; // 确保失败时重置
+      if (this.onError) {
+        this.onError(error);
+      }
       throw error;
     }
   }
@@ -210,22 +239,54 @@ export class MP4Parser {
   /**
    * 添加数据块
    */
-  appendBuffer(buffer) {
-    if (!this.mp4boxfile) {
-      this.init();
+  async appendBuffer(buffer) {
+    try {
+      // 确保MP4Box已初始化
+      if (!this.mp4boxfile) {
+        await this.init();
+      }
+
+      // 再次检查MP4Box是否成功初始化
+      if (!this.mp4boxfile) {
+        throw new Error('MP4Box failed to initialize');
+      }
+
+      // 验证buffer
+      if (!buffer) {
+        throw new Error('Buffer is null or undefined');
+      }
+
+      // 确保buffer是ArrayBuffer
+      let arrayBuffer;
+      if (buffer instanceof ArrayBuffer) {
+        arrayBuffer = buffer;
+      } else if (buffer.buffer instanceof ArrayBuffer) {
+        arrayBuffer = buffer.buffer;
+      } else {
+        throw new Error('Invalid buffer type');
+      }
+
+      // 验证ArrayBuffer
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+        throw new Error('Empty or invalid ArrayBuffer');
+      }
+      
+      // 设置文件位置信息
+      arrayBuffer.fileStart = this.bufferOffset;
+      this.bufferOffset += arrayBuffer.byteLength;
+
+      // 添加到MP4Box
+      const nextExpectedOffset = this.mp4boxfile.appendBuffer(arrayBuffer);
+      
+      return nextExpectedOffset;
+      
+    } catch (error) {
+      console.error('Error in appendBuffer:', error);
+      if (this.onError) {
+        this.onError(error);
+      }
+      throw error;
     }
-
-    // 确保buffer是ArrayBuffer
-    const arrayBuffer = buffer instanceof ArrayBuffer ? buffer : buffer.buffer;
-    
-    // 设置文件位置信息
-    arrayBuffer.fileStart = this.bufferOffset;
-    this.bufferOffset += arrayBuffer.byteLength;
-
-    // 添加到MP4Box
-    const nextExpectedOffset = this.mp4boxfile.appendBuffer(arrayBuffer);
-    
-    return nextExpectedOffset;
   }
 
   /**
