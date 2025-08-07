@@ -1,8 +1,20 @@
 {
   "name": "webav-player",
   "version": "1.0.0",
-  "description": "A modern web-based audio/video player with WebGPU, WebGL, AudioWorklet, and WebCodecs support",
+  "description": "Modern web audio/video player with WebGPU, WebGL, AudioWorklet, and WebCodecs support",
   "main": "src/main.js",
+  "keywords": [
+    "webav",
+    "video",
+    "audio",
+    "player",
+    "webgpu",
+    "webgl",
+    "webcodecs",
+    "audioworklet"
+  ],
+  "author": "WebAV Player Team",
+  "license": "MIT",
   "engines": {
     "node": ">=16.0.0",
     "npm": ">=8.0.0"
@@ -10,9 +22,17 @@
   "scripts": {
     "dev": "webpack serve --mode development",
     "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
     "start": "webpack serve --mode development --open",
-    "clean": "rm -rf node_modules dist",
-    "reinstall": "npm run clean && npm install"
+    "clean": "rm -rf dist",
+    "clean:all": "rm -rf dist node_modules package-lock.json",
+    "reinstall": "npm run clean:all && npm install",
+    "serve": "npm run build && npx serve dist"
+  },
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.10",
+    "@ffmpeg/util": "^0.12.1",
+    "mp4box": "^0.5.2"
   },
   "devDependencies": {
     "@babel/core": "^7.23.0",
@@ -34,9 +54,10 @@
     "webpack-cli": "^5.1.4",
     "webpack-dev-server": "^4.15.1"
   },
-  "dependencies": {
-    "@ffmpeg/ffmpeg": "^0.12.10",
-    "@ffmpeg/util": "^0.12.1",
-    "mp4box": "^0.5.2"
-  }
+  "browserslist": [
+    "Chrome >= 90",
+    "Firefox >= 88",
+    "Safari >= 14",
+    "Edge >= 90"
+  ]
 }
