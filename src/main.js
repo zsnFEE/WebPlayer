@@ -585,7 +585,11 @@ class App {
   enableControls() {
     console.log('🎛️ [App] enableControls() called');
     
+    // 强制启用播放按钮
     this.playBtn.disabled = false;
+    this.playBtn.style.opacity = '1';
+    this.playBtn.style.pointerEvents = 'auto';
+    
     this.progressContainer.style.pointerEvents = 'auto';
     this.volumeSlider.disabled = false;
     this.speedSelector.disabled = false;
@@ -597,11 +601,22 @@ class App {
     }
     
     console.log('✅ [App] All controls enabled successfully');
+    console.log('🎮 [App] Play button state:', {
+      disabled: this.playBtn.disabled,
+      opacity: this.playBtn.style.opacity,
+      pointerEvents: this.playBtn.style.pointerEvents
+    });
     
     // 检查播放器状态
     if (this.player) {
       const state = this.player.getState();
       console.log('🎮 [App] Player state after enabling controls:', state);
+      
+      // 如果mediaInfo为null，强制更新状态
+      if (!state.mediaInfo && this.player.mediaInfo) {
+        console.log('🔄 [App] Updating player state with mediaInfo');
+        this.player.mediaInfo = this.player.mediaInfo;
+      }
     }
   }
 

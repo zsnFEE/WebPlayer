@@ -271,15 +271,31 @@ export class WebCodecsDecoder {
    * 初始化视频解码器 - 增强版
    */
   async initVideoDecoder(config) {
+    console.log('🎥 [WebCodecs] initVideoDecoder called with config:', config);
+    console.log('🔍 [WebCodecs] Support check:', {
+      isVideoSupported: this.isVideoSupported,
+      hasVideoDecoder: typeof VideoDecoder !== 'undefined',
+      windowVideoDecoder: 'VideoDecoder' in window
+    });
+    
     if (!this.isVideoSupported) {
+      console.error('❌ [WebCodecs] VideoDecoder not supported');
       throw new Error('VideoDecoder not supported');
     }
 
     // 优化配置以支持硬件加速
+    console.log('⚙️ [WebCodecs] Optimizing video config...');
     const optimizedConfig = await this.optimizeVideoConfig(config);
+    console.log('✅ [WebCodecs] Optimized config:', optimizedConfig);
 
+    console.log('🔧 [WebCodecs] Creating VideoDecoder instance...');
     this.videoDecoder = new VideoDecoder({
       output: (frame) => {
+        console.log('🎬 [WebCodecs] Video frame decoded:', {
+          timestamp: frame.timestamp,
+          duration: frame.duration,
+          format: frame.format
+        });
         this.handleVideoFrame(frame);
         this.stats.decodedFrames++;
         
@@ -291,14 +307,15 @@ export class WebCodecsDecoder {
         }
       },
       error: (error) => {
-        console.error('Video decoder error:', error);
+        console.error('❌ [WebCodecs] Video decoder error:', error);
         this.stats.droppedFrames++;
       }
     });
 
     try {
+      console.log('🔧 [WebCodecs] Configuring video decoder...');
       this.videoDecoder.configure(optimizedConfig);
-      console.log('Video decoder initialized with config:', optimizedConfig);
+      console.log('✅ [WebCodecs] Video decoder initialized with config:', optimizedConfig);
       
       // 报告硬件加速状态
       if (optimizedConfig.hardwareAcceleration) {

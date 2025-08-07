@@ -248,6 +248,16 @@ export class WebAVPlayer {
   handleMediaReady(info) {
     console.log('🎯 [Player] handleMediaReady called with info:', info);
     
+    if (!info) {
+      console.error('❌ [Player] No media info received!');
+      return;
+    }
+    
+    if (!info.tracks || info.tracks.length === 0) {
+      console.error('❌ [Player] No tracks found in media info!');
+      return;
+    }
+    
     this.mediaInfo = info;
     this.duration = info.duration / info.timescale;
     this.isStreaming = info.isStreaming || false;
@@ -256,7 +266,20 @@ export class WebAVPlayer {
       duration: this.duration,
       isStreaming: this.isStreaming,
       hasVideo: info.hasVideo,
-      hasAudio: info.hasAudio
+      hasAudio: info.hasAudio,
+      tracksCount: info.tracks.length,
+      timescale: info.timescale,
+      rawDuration: info.duration
+    });
+    
+    // 验证tracks
+    const videoTracks = info.tracks.filter(t => t.type === 'video');
+    const audioTracks = info.tracks.filter(t => t.type === 'audio');
+    
+    console.log('🎥 [Player] Track analysis:', {
+      videoTracks: videoTracks.length,
+      audioTracks: audioTracks.length,
+      allTracks: info.tracks.map(t => ({ id: t.id, type: t.type, codec: t.codec }))
     });
     
     // 设置音频信息
@@ -269,12 +292,26 @@ export class WebAVPlayer {
     
     // 开始解码器初始化
     console.log('⚙️ [Player] Initializing decoders with media info...');
-    this.initDecodersWithMediaInfo();
+    try {
+      this.initDecodersWithMediaInfo();
+      console.log('✅ [Player] Decoder initialization called successfully');
+    } catch (error) {
+      console.error('❌ [Player] Decoder initialization failed:', error);
+    }
     
     if (this.onDurationChange) {
       console.log('⏱️ [Player] Calling onDurationChange callback:', this.duration);
       this.onDurationChange(this.duration);
     }
+    
+    // 延迟检查解码器状态
+    setTimeout(() => {
+      console.log('🔍 [Player] Final decoder status check:', {
+        hasDecoder: !!this.decoder,
+        decoderType: this.decoder?.constructor?.name,
+        decoderState: this.decoder ? 'initialized' : 'null'
+      });
+    }, 100);
     
     console.log('✅ [Player] Media ready - final state:', {
       duration: this.duration,
@@ -339,28 +376,66 @@ export class WebAVPlayer {
    * 使用媒体信息初始化解码器
    */
   async initDecodersWithMediaInfo() {
-    if (!this.mediaInfo) return;
+    console.log('🔧 [Player] initDecodersWithMediaInfo started');
+    console.log('📊 [Player] MediaInfo check:', {
+      hasMediaInfo: !!this.mediaInfo,
+      hasDecoder: !!this.decoder,
+      mediaInfo: this.mediaInfo
+    });
+    
+    if (!this.mediaInfo) {
+      console.error('❌ [Player] No media info available for decoder initialization');
+      return;
+    }
+    
+    if (!this.decoder) {
+      console.error('❌ [Player] No decoder available for initialization');
+      return;
+    }
     
     try {
       // 初始化视频解码器
       if (this.mediaInfo.hasVideo && this.parser.videoTrack) {
+        console.log('🎥 [Player] Initializing video decoder...');
+        console.log('🎬 [Player] Video track info:', this.parser.videoTrack);
+        
         const videoConfig = this.createVideoConfig();
+        console.log('⚙️ [Player] Video config:', videoConfig);
+        
         await this.decoder.initVideoDecoder(videoConfig);
+        console.log('✅ [Player] Video decoder initialized successfully');
+      } else {
+        console.log('⚠️ [Player] Skipping video decoder - hasVideo:', this.mediaInfo.hasVideo, 'videoTrack:', !!this.parser.videoTrack);
       }
       
-      // 初始化音频解码器
+      // 初始化音频解码器  
       if (this.mediaInfo.hasAudio && this.parser.audioTrack) {
+        console.log('🔊 [Player] Initializing audio decoder...');
+        console.log('🎵 [Player] Audio track info:', this.parser.audioTrack);
+        
         const audioConfig = this.createAudioConfig();
+        console.log('⚙️ [Player] Audio config:', audioConfig);
+        
         await this.decoder.initAudioDecoder(audioConfig);
+        console.log('✅ [Player] Audio decoder initialized successfully');
+      } else {
+        console.log('⚠️ [Player] Skipping audio decoder - hasAudio:', this.mediaInfo.hasAudio, 'audioTrack:', !!this.parser.audioTrack);
       }
       
-      console.log('Decoders initialized with media info');
+      console.log('✅ [Player] All decoders initialized with media info');
       
     } catch (error) {
-      console.error('Failed to initialize decoders with media info:', error);
+      console.error('❌ [Player] Failed to initialize decoders with media info:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      
       if (this.onError) {
         this.onError(error);
       }
+      throw error; // 重新抛出以便上层处理
     }
   }
 

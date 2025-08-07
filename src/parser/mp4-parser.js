@@ -217,13 +217,22 @@ export class MP4Parser {
 
     this.isInitialized = true;
     
+    // 构建完整的媒体信息对象
+    const mediaInfo = {
+      ...info,
+      hasVideo: !!this.videoTrack,
+      hasAudio: !!this.audioTrack,
+      isStreaming: this.isStreaming,
+      fastStartup: this.fastStartup,
+      supportsSeek: !this.isStreaming || this.streamLoader.totalBytes > 0,
+      videoTrack: this.videoTrack,
+      audioTrack: this.audioTrack
+    };
+    
+    console.log('🎯 [MP4Parser] Sending complete media info:', mediaInfo);
+    
     if (this.onReady) {
-      this.onReady({
-        ...info,
-        isStreaming: this.isStreaming,
-        fastStartup: this.fastStartup,
-        supportsSeek: !this.isStreaming || this.streamLoader.totalBytes > 0
-      });
+      this.onReady(mediaInfo);
     }
   }
 
