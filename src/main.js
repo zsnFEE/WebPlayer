@@ -180,6 +180,9 @@ class App {
         console.log('Media ready, controls enabled');
       };
       
+      // ★ 关键修复：初始化播放器组件
+      await this.player.initialize();
+      
       console.log('WebAV Player initialized successfully');
       
     } catch (error) {

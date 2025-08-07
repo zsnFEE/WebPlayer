@@ -241,6 +241,8 @@ body {
   object-fit: contain;
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-lg);
+  background: var(--surface-bg);
+  display: block;
 }
 
 /* Loading State */
