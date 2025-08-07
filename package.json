@@ -24,8 +24,10 @@
     "build": "webpack --mode production",
     "build:dev": "webpack --mode development",
     "start": "webpack serve --mode development --open",
-    "clean": "rm -rf dist",
-    "clean:all": "rm -rf dist node_modules package-lock.json",
+    "simple": "webpack serve --config webpack.simple.config.js --mode development",
+    "simple:build": "webpack --config webpack.simple.config.js --mode production",
+    "clean": "rm -rf dist dist-simple",
+    "clean:all": "rm -rf dist dist-simple node_modules package-lock.json",
     "reinstall": "npm run clean:all && npm install",
     "serve": "npm run build && npx serve dist"
   },
