@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>原生 WebAV 播放器</title>
+    
+    <!-- 核心polyfills -->
+    <script>
+        // 修复全局变量和API兼容性
+        if (typeof global === 'undefined') {
+            window.global = window;
+        }
+        
+        if (!window.crypto) {
+            window.crypto = {};
+        }
+        
+        if (!window.crypto.getRandomValues) {
+            window.crypto.getRandomValues = function(array) {
+                for (let i = 0; i < array.length; i++) {
+                    array[i] = Math.floor(Math.random() * 256);
+                }
+                return array;
+            };
+        }
+        
+        if (!window.process) {
+            window.process = {
+                env: { NODE_ENV: 'development' },
+                browser: true,
+                nextTick: (fn) => setTimeout(fn, 0)
+            };
+        }
+        
+        if (typeof SharedArrayBuffer === 'undefined') {
+            window.SharedArrayBuffer = ArrayBuffer;
+        }
+        
+        // Buffer polyfill
+        if (!window.Buffer) {
+            window.Buffer = {
+                from: function(data) {
+                    if (typeof data === 'string') {
+                        const encoder = new TextEncoder();
+                        return encoder.encode(data);
+                    }
+                    return new Uint8Array(data);
+                },
+                alloc: function(size) {
+                    return new Uint8Array(size);
+                },
+                isBuffer: function(obj) {
+                    return obj instanceof Uint8Array;
+                }
+            };
+        }
+        
+        console.log('Native polyfills loaded successfully');
+    </script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .status {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .player-container {
+            background: rgba(0,0,0,0.3);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        canvas {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            background: #000;
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        button, input[type="file"] {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00f260, #0575e6);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .info-panel {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .error {
+            background: rgba(255,0,0,0.2);
+            border: 1px solid rgba(255,0,0,0.5);
+            color: #ffcccc;
+        }
+        
+        .success {
+            background: rgba(0,255,0,0.2);
+            border: 1px solid rgba(0,255,0,0.5);
+            color: #ccffcc;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 原生 WebAV 播放器</h1>
+            <p>无需构建工具的纯原生HTML5音视频播放器</p>
+        </div>
+        
+        <div class="status" id="status">
+            <div class="loading"></div> 正在初始化播放器...
+        </div>
+        
+        <div class="player-container">
+            <canvas id="videoCanvas" width="800" height="450"></canvas>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            
+            <div class="controls">
+                <div class="file-input-wrapper">
+                    <button>📁 选择视频文件</button>
+                    <input type="file" id="fileInput" accept="video/*,audio/*">
+                </div>
+                <button id="playBtn" disabled>▶️ 播放</button>
+                <button id="pauseBtn" disabled>⏸️ 暂停</button>
+                <button id="stopBtn" disabled>⏹️ 停止</button>
+                <button id="testBtn">🧪 环境测试</button>
+            </div>
+            
+            <div class="info-panel" id="infoPanel">
+                <strong>播放器状态:</strong> 等待初始化...<br>
+                <strong>支持的功能:</strong> 检测中...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 简化版播放器实现
+        class NativeWebAVPlayer {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = null;
+                this.audioContext = null;
+                this.currentFile = null;
+                this.isPlaying = false;
+                this.supports = {};
+                
+                this.init();
+            }
+            
+            async init() {
+                try {
+                    this.checkSupport();
+                    await this.initializeRenderer();
+                    await this.initializeAudio();
+                    this.updateStatus('播放器初始化成功!', 'success');
+                } catch (error) {
+                    this.updateStatus(`初始化失败: ${error.message}`, 'error');
+                }
+            }
+            
+            checkSupport() {
+                this.supports = {
+                    webgl: !!this.canvas.getContext('webgl'),
+                    webgl2: !!this.canvas.getContext('webgl2'),
+                    webgpu: !!navigator.gpu,
+                    audioWorklet: !!(window.AudioContext && AudioContext.prototype.audioWorklet),
+                    webcodecs: !!(window.VideoDecoder && window.AudioDecoder),
+                    sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
+                    offscreenCanvas: typeof OffscreenCanvas !== 'undefined',
+                    mediaSource: !!window.MediaSource,
+                    fileAPI: !!(window.File && window.FileReader)
+                };
+                
+                console.log('Feature support:', this.supports);
+            }
+            
+            async initializeRenderer() {
+                // 尝试获取最佳渲染上下文
+                if (this.supports.webgl2) {
+                    this.ctx = this.canvas.getContext('webgl2');
+                    console.log('Using WebGL2 renderer');
+                } else if (this.supports.webgl) {
+                    this.ctx = this.canvas.getContext('webgl');
+                    console.log('Using WebGL renderer');
+                } else {
+                    this.ctx = this.canvas.getContext('2d');
+                    console.log('Using Canvas 2D renderer (fallback)');
+                }
+                
+                if (!this.ctx) {
+                    throw new Error('无法获取渲染上下文');
+                }
+            }
+            
+            async initializeAudio() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    // 处理Safari的自动播放策略
+                    if (this.audioContext.state === 'suspended') {
+                        console.log('AudioContext suspended, will resume on user interaction');
+                    }
+                    
+                    console.log('Audio system initialized');
+                } catch (error) {
+                    console.warn('Audio initialization failed:', error);
+                    throw new Error('音频系统初始化失败');
+                }
+            }
+            
+            async loadFile(file) {
+                try {
+                    this.currentFile = file;
+                    this.updateStatus(`正在加载: ${file.name}`, 'info');
+                    
+                    // 使用原生 video 元素作为解码器
+                    const video = document.createElement('video');
+                    video.preload = 'metadata';
+                    video.muted = true;
+                    
+                    const url = URL.createObjectURL(file);
+                    video.src = url;
+                    
+                    return new Promise((resolve, reject) => {
+                        video.onloadedmetadata = () => {
+                            this.video = video;
+                            this.duration = video.duration;
+                            this.updateStatus(`文件加载成功: ${Math.round(this.duration)}秒`, 'success');
+                            document.getElementById('playBtn').disabled = false;
+                            resolve();
+                        };
+                        
+                        video.onerror = () => {
+                            URL.revokeObjectURL(url);
+                            reject(new Error('文件格式不支持或损坏'));
+                        };
+                    });
+                    
+                } catch (error) {
+                    this.updateStatus(`加载失败: ${error.message}`, 'error');
+                    throw error;
+                }
+            }
+            
+            async play() {
+                try {
+                    if (!this.video) {
+                        throw new Error('没有加载的视频文件');
+                    }
+                    
+                    // 恢复 AudioContext
+                    if (this.audioContext.state === 'suspended') {
+                        await this.audioContext.resume();
+                    }
+                    
+                    await this.video.play();
+                    this.isPlaying = true;
+                    this.startRenderLoop();
+                    
+                    document.getElementById('playBtn').disabled = true;
+                    document.getElementById('pauseBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = false;
+                    
+                    this.updateStatus('播放中...', 'success');
+                    
+                } catch (error) {
+                    this.updateStatus(`播放失败: ${error.message}`, 'error');
+                }
+            }
+            
+            pause() {
+                if (this.video) {
+                    this.video.pause();
+                    this.isPlaying = false;
+                    
+                    document.getElementById('playBtn').disabled = false;
+                    document.getElementById('pauseBtn').disabled = true;
+                    
+                    this.updateStatus('已暂停', 'info');
+                }
+            }
+            
+            stop() {
+                if (this.video) {
+                    this.video.pause();
+                    this.video.currentTime = 0;
+                    this.isPlaying = false;
+                    
+                    document.getElementById('playBtn').disabled = false;
+                    document.getElementById('pauseBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = true;
+                    
+                    this.clearCanvas();
+                    this.updateStatus('已停止', 'info');
+                }
+            }
+            
+            startRenderLoop() {
+                const render = () => {
+                    if (this.isPlaying && this.video) {
+                        this.renderFrame();
+                        this.updateProgress();
+                        requestAnimationFrame(render);
+                    }
+                };
+                render();
+            }
+            
+            renderFrame() {
+                if (!this.video || !this.ctx) return;
+                
+                const { videoWidth, videoHeight } = this.video;
+                if (videoWidth === 0 || videoHeight === 0) return;
+                
+                // 计算适应画布的尺寸
+                const canvasAspect = this.canvas.width / this.canvas.height;
+                const videoAspect = videoWidth / videoHeight;
+                
+                let drawWidth, drawHeight, drawX, drawY;
+                
+                if (videoAspect > canvasAspect) {
+                    drawWidth = this.canvas.width;
+                    drawHeight = this.canvas.width / videoAspect;
+                    drawX = 0;
+                    drawY = (this.canvas.height - drawHeight) / 2;
+                } else {
+                    drawWidth = this.canvas.height * videoAspect;
+                    drawHeight = this.canvas.height;
+                    drawX = (this.canvas.width - drawWidth) / 2;
+                    drawY = 0;
+                }
+                
+                // 清空画布
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // 绘制视频帧
+                if (this.ctx.drawImage) {
+                    this.ctx.drawImage(this.video, drawX, drawY, drawWidth, drawHeight);
+                }
+            }
+            
+            clearCanvas() {
+                if (this.ctx && this.ctx.clearRect) {
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                }
+            }
+            
+            updateProgress() {
+                if (!this.video || !this.duration) return;
+                
+                const progress = (this.video.currentTime / this.duration) * 100;
+                document.getElementById('progressFill').style.width = progress + '%';
+            }
+            
+            updateStatus(message, type = 'info') {
+                const statusEl = document.getElementById('status');
+                statusEl.className = `status ${type}`;
+                statusEl.innerHTML = message;
+                
+                // 更新信息面板
+                const info = document.getElementById('infoPanel');
+                const supportList = Object.entries(this.supports)
+                    .map(([key, value]) => `${key}: ${value ? '✅' : '❌'}`)
+                    .join(', ');
+                
+                info.innerHTML = `
+                    <strong>播放器状态:</strong> ${message}<br>
+                    <strong>支持的功能:</strong> ${supportList}<br>
+                    <strong>当前文件:</strong> ${this.currentFile ? this.currentFile.name : '无'}<br>
+                    <strong>AudioContext状态:</strong> ${this.audioContext ? this.audioContext.state : '未初始化'}
+                `;
+            }
+            
+            runDiagnostics() {
+                const results = [];
+                
+                results.push('🔍 环境诊断结果:');
+                results.push(`浏览器: ${navigator.userAgent}`);
+                results.push(`WebGL: ${this.supports.webgl ? '✅' : '❌'}`);
+                results.push(`WebGL2: ${this.supports.webgl2 ? '✅' : '❌'}`);
+                results.push(`WebGPU: ${this.supports.webgpu ? '✅' : '❌'}`);
+                results.push(`AudioWorklet: ${this.supports.audioWorklet ? '✅' : '❌'}`);
+                results.push(`WebCodecs: ${this.supports.webcodecs ? '✅' : '❌'}`);
+                results.push(`SharedArrayBuffer: ${this.supports.sharedArrayBuffer ? '✅' : '❌'}`);
+                results.push(`OffscreenCanvas: ${this.supports.offscreenCanvas ? '✅' : '❌'}`);
+                results.push(`MediaSource: ${this.supports.mediaSource ? '✅' : '❌'}`);
+                results.push(`File API: ${this.supports.fileAPI ? '✅' : '❌'}`);
+                
+                // 测试关键API
+                try {
+                    window.crypto.getRandomValues(new Uint8Array(1));
+                    results.push('crypto.getRandomValues: ✅');
+                } catch (e) {
+                    results.push(`crypto.getRandomValues: ❌ ${e.message}`);
+                }
+                
+                alert(results.join('\n'));
+            }
+        }
+        
+        // 初始化应用
+        let player;
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            const canvas = document.getElementById('videoCanvas');
+            player = new NativeWebAVPlayer(canvas);
+            
+            // 设置事件监听器
+            document.getElementById('fileInput').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    try {
+                        await player.loadFile(file);
+                    } catch (error) {
+                        console.error('文件加载失败:', error);
+                    }
+                }
+            });
+            
+            document.getElementById('playBtn').addEventListener('click', () => player.play());
+            document.getElementById('pauseBtn').addEventListener('click', () => player.pause());
+            document.getElementById('stopBtn').addEventListener('click', () => player.stop());
+            document.getElementById('testBtn').addEventListener('click', () => player.runDiagnostics());
+            
+            // 全局错误处理
+            window.addEventListener('error', (e) => {
+                console.error('Global error:', e.error);
+                player.updateStatus(`错误: ${e.error.message}`, 'error');
+            });
+            
+            window.addEventListener('unhandledrejection', (e) => {
+                console.error('Unhandled promise rejection:', e.reason);
+                player.updateStatus(`Promise错误: ${e.reason}`, 'error');
+            });
+        });
+    </script>
+</body>
+</html>
