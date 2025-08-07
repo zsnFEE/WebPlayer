@@ -5,37 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebAV Player</title>
     
-    <!-- 基础polyfills - 在其他脚本加载前修复关键问题 -->
-    <script>
-        // 修复global和crypto.getRandomValues问题
-        if (typeof global === 'undefined') {
-            window.global = window;
-        }
-        
-        // 确保crypto.getRandomValues存在
-        if (!window.crypto) {
-            window.crypto = {};
-        }
-        
-        if (!window.crypto.getRandomValues) {
-            window.crypto.getRandomValues = function(array) {
-                for (let i = 0; i < array.length; i++) {
-                    array[i] = Math.floor(Math.random() * 256);
-                }
-                return array;
-            };
-        }
-        
-        // 基础process对象
-        if (!window.process) {
-            window.process = {
-                env: {},
-                browser: true,
-                nextTick: (fn) => setTimeout(fn, 0)
-            };
-        }
-    </script>
-    
     <style>
         * {
             margin: 0;
@@ -204,6 +173,6 @@
         </div>
     </div>
     
-    <script type="module" src="/src/main.js"></script>
+    <!-- Webpack will inject scripts here -->
 </body>
 </html>
