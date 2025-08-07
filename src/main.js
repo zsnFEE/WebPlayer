@@ -317,15 +317,23 @@ class App {
       
       console.log('✅ [App] File loaded successfully:', file.name);
       console.log('🎮 [App] Checking player state after load...');
-      console.log('Player state:', {
-        isPlaying: this.player.isPlaying,
-        duration: this.player.duration,
-        currentTime: this.player.currentTime,
-        mediaInfo: this.player.mediaInfo,
-        hasVideoDecoder: !!this.player.decoder,
-        hasRenderer: !!this.player.renderer,
-        hasParser: !!this.player.parser
-      });
+      
+      // 安全地检查播放器状态，避免死循环
+      try {
+        const state = {
+          isPlaying: this.player?.isPlaying || false,
+          duration: this.player?.duration || 0,
+          currentTime: this.player?.currentTime || 0,
+          mediaInfo: this.player?.mediaInfo ? 'Present' : null,
+          hasVideoDecoder: !!(this.player?.decoder),
+          hasRenderer: !!(this.player?.renderer),
+          hasParser: !!(this.player?.parser)
+        };
+        console.log('Player state:', state);
+        console.log('✅ [App] State check completed successfully');
+      } catch (error) {
+        console.error('❌ [App] Error checking player state:', error);
+      }
       
     } catch (error) {
       console.error('❌ [App] Failed to load file:', error);

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚨 紧急修复版播放器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .file-input, .url-input, button {
+            margin: 10px;
+            padding: 12px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+        }
+        .file-input, .url-input {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            width: 300px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .video-container {
+            text-align: center;
+            margin: 30px 0;
+            background: #000;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        video {
+            max-width: 100%;
+            max-height: 500px;
+        }
+        .status {
+            background: #333;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚨 紧急修复版播放器</h1>
+            <p>极简版本，专注解决播放问题</p>
+        </div>
+        
+        <div class="controls">
+            <input type="file" id="fileInput" class="file-input" accept="video/*">
+            <br>
+            <input type="text" id="urlInput" class="url-input" placeholder="或输入视频URL">
+            <button onclick="loadURL()">加载URL</button>
+            <button onclick="clearLog()">清除日志</button>
+        </div>
+        
+        <div class="video-container">
+            <video id="mainVideo" controls style="display:none;"></video>
+            <div id="placeholder">请选择视频文件或输入URL</div>
+        </div>
+        
+        <div class="status" id="status">等待操作...</div>
+    </div>
+
+    <script>
+        // 全局变量
+        let video = null;
+        let fileInput = null;
+        let urlInput = null;
+        let placeholder = null;
+        let status = null;
+
+        // 简单日志函数
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : '📝';
+            const logMessage = `[${timestamp}] ${prefix} ${message}`;
+            
+            console.log(logMessage);
+            
+            if (status) {
+                status.innerHTML += `<span class="${type}">${logMessage}</span>\n`;
+                status.scrollTop = status.scrollHeight;
+            }
+        }
+
+        function clearLog() {
+            if (status) {
+                status.innerHTML = '';
+            }
+            console.clear();
+            log('日志已清除');
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            log('开始初始化...');
+            
+            try {
+                // 获取元素
+                video = document.getElementById('mainVideo');
+                fileInput = document.getElementById('fileInput');
+                urlInput = document.getElementById('urlInput');
+                placeholder = document.getElementById('placeholder');
+                status = document.getElementById('status');
+                
+                if (!video || !fileInput || !urlInput) {
+                    throw new Error('关键元素未找到');
+                }
+                
+                log('元素获取成功', 'success');
+                
+                // 设置文件输入事件
+                fileInput.addEventListener('change', function(e) {
+                    const file = e.target.files[0];
+                    if (file) {
+                        loadFile(file);
+                    }
+                });
+                
+                // 设置视频事件
+                video.addEventListener('loadedmetadata', function() {
+                    log(`视频加载成功: ${video.duration.toFixed(2)}秒`, 'success');
+                    showVideo();
+                });
+                
+                video.addEventListener('error', function(e) {
+                    log(`视频错误: ${e.message || '未知错误'}`, 'error');
+                });
+                
+                video.addEventListener('canplay', function() {
+                    log('视频可以播放', 'success');
+                });
+                
+                log('事件监听器设置完成', 'success');
+                log('初始化完成，准备就绪！', 'success');
+                
+            } catch (error) {
+                log(`初始化失败: ${error.message}`, 'error');
+            }
+        });
+
+        // 加载本地文件
+        function loadFile(file) {
+            log(`开始加载文件: ${file.name} (${(file.size/1024/1024).toFixed(2)}MB)`);
+            
+            try {
+                // 验证文件类型
+                if (!file.type.startsWith('video/')) {
+                    log(`警告: 文件类型可能不支持 (${file.type})`, 'error');
+                }
+                
+                // 创建URL
+                const url = URL.createObjectURL(file);
+                log('文件URL创建成功');
+                
+                // 设置视频源
+                video.src = url;
+                log('视频源设置完成');
+                
+                // 清理旧的URL（避免内存泄漏）
+                video.addEventListener('loadstart', function() {
+                    log('开始加载视频数据...');
+                }, { once: true });
+                
+            } catch (error) {
+                log(`文件加载失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 加载URL
+        function loadURL() {
+            const url = urlInput.value.trim();
+            if (!url) {
+                log('请输入有效的URL', 'error');
+                return;
+            }
+            
+            log(`开始加载URL: ${url}`);
+            
+            try {
+                video.src = url;
+                log('URL设置完成');
+            } catch (error) {
+                log(`URL加载失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 显示视频
+        function showVideo() {
+            try {
+                if (placeholder) {
+                    placeholder.style.display = 'none';
+                }
+                video.style.display = 'block';
+                log('视频显示成功', 'success');
+            } catch (error) {
+                log(`显示视频失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 全局错误处理
+        window.addEventListener('error', function(e) {
+            log(`全局错误: ${e.message}`, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+            log(`未处理的Promise错误: ${e.reason}`, 'error');
+        });
+
+        // 防止页面刷新时的确认对话框
+        window.addEventListener('beforeunload', function(e) {
+            // 清理对象URL
+            if (video && video.src && video.src.startsWith('blob:')) {
+                URL.revokeObjectURL(video.src);
+            }
+        });
+    </script>
+</body>
+</html>
