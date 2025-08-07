@@ -10,9 +10,34 @@ import { WebAVPlayer } from './player.js';
 class App {
   constructor() {
     this.player = null;
+    this.setupGlobalErrorHandling();
     this.initializeElements();
     this.setupEventListeners();
     this.initializePlayer();
+  }
+
+  /**
+   * 设置全局错误处理
+   */
+  setupGlobalErrorHandling() {
+    // 捕获未处理的错误
+    window.addEventListener('error', (event) => {
+      console.error('🚨 [Global] Unhandled error:', {
+        message: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        error: event.error
+      });
+    });
+
+    // 捕获未处理的Promise拒绝
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('🚨 [Global] Unhandled promise rejection:', {
+        reason: event.reason,
+        promise: event.promise
+      });
+    });
   }
 
   /**
@@ -267,19 +292,48 @@ class App {
    * 加载文件
    */
   async loadFile(file) {
+    console.log('📁 [App] Starting loadFile process...');
+    
     if (!this.player) {
+      console.error('❌ [App] Player not initialized');
       this.showError('播放器未初始化');
       return;
     }
 
     try {
-      console.log('Loading file:', file.name, 'Size:', file.size, 'Type:', file.type);
+      console.log('📄 [App] File details:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        lastModified: new Date(file.lastModified)
+      });
+      
+      console.log('⏳ [App] Starting loading process...');
       this.showLoading();
       this.disableControls();
+      
+      console.log('🎬 [App] Calling player.loadFile...');
       await this.player.loadFile(file);
-      console.log('File loaded successfully:', file.name);
+      
+      console.log('✅ [App] File loaded successfully:', file.name);
+      console.log('🎮 [App] Checking player state after load...');
+      console.log('Player state:', {
+        isPlaying: this.player.isPlaying,
+        duration: this.player.duration,
+        currentTime: this.player.currentTime,
+        mediaInfo: this.player.mediaInfo,
+        hasVideoDecoder: !!this.player.decoder,
+        hasRenderer: !!this.player.renderer,
+        hasParser: !!this.player.parser
+      });
+      
     } catch (error) {
-      console.error('Failed to load file:', error);
+      console.error('❌ [App] Failed to load file:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       this.hideLoading();
       
       // 提供更友好的错误信息
@@ -340,14 +394,27 @@ class App {
    * 切换播放/暂停
    */
   async togglePlay() {
-    if (!this.player) return;
+    console.log('🎮 [App] togglePlay() called');
+    
+    if (!this.player) {
+      console.error('❌ [App] No player available for togglePlay');
+      return;
+    }
 
     const state = this.player.getState();
+    console.log('🎵 [App] Current player state:', state);
     
-    if (state.playing) {
-      this.player.pause();
-    } else {
-      await this.player.play();
+    try {
+      if (state.playing) {
+        console.log('⏸️ [App] Pausing playback...');
+        this.player.pause();
+      } else {
+        console.log('▶️ [App] Starting playback...');
+        await this.player.play();
+      }
+    } catch (error) {
+      console.error('❌ [App] Error in togglePlay:', error);
+      this.showError(`播放控制失败: ${error.message}`);
     }
   }
 
@@ -516,6 +583,8 @@ class App {
    * 启用控件
    */
   enableControls() {
+    console.log('🎛️ [App] enableControls() called');
+    
     this.playBtn.disabled = false;
     this.progressContainer.style.pointerEvents = 'auto';
     this.volumeSlider.disabled = false;
@@ -525,6 +594,14 @@ class App {
     }
     if (this.loadUrlBtn) {
       this.loadUrlBtn.disabled = !this.urlInput.value.trim();
+    }
+    
+    console.log('✅ [App] All controls enabled successfully');
+    
+    // 检查播放器状态
+    if (this.player) {
+      const state = this.player.getState();
+      console.log('🎮 [App] Player state after enabling controls:', state);
     }
   }
 

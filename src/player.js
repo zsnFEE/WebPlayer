@@ -246,35 +246,53 @@ export class WebAVPlayer {
    * 处理媒体信息就绪 - 增强版
    */
   handleMediaReady(info) {
+    console.log('🎯 [Player] handleMediaReady called with info:', info);
+    
     this.mediaInfo = info;
     this.duration = info.duration / info.timescale;
     this.isStreaming = info.isStreaming || false;
+    
+    console.log('📊 [Player] Processed media info:', {
+      duration: this.duration,
+      isStreaming: this.isStreaming,
+      hasVideo: info.hasVideo,
+      hasAudio: info.hasAudio
+    });
     
     // 设置音频信息
     if (info.hasAudio && this.parser.audioTrack) {
       const audioTrack = this.parser.audioTrack;
       this.audioChannels = audioTrack.audio?.channel_count || 2;
+      console.log('🔊 [Player] Setting up audio channels:', this.audioChannels);
       this.setupAudioChannels();
     }
     
     // 开始解码器初始化
+    console.log('⚙️ [Player] Initializing decoders with media info...');
     this.initDecodersWithMediaInfo();
     
     if (this.onDurationChange) {
+      console.log('⏱️ [Player] Calling onDurationChange callback:', this.duration);
       this.onDurationChange(this.duration);
     }
     
-    console.log('Media ready:', {
+    console.log('✅ [Player] Media ready - final state:', {
       duration: this.duration,
       hasVideo: info.hasVideo,
       hasAudio: info.hasAudio,
       isStreaming: this.isStreaming,
-      audioChannels: this.audioChannels
+      audioChannels: this.audioChannels,
+      hasDecoder: !!this.decoder,
+      hasRenderer: !!this.renderer,
+      hasAudioPlayer: !!this.audioPlayer
     });
 
     // 触发媒体就绪回调
     if (this.onMediaReady) {
+      console.log('📢 [Player] Calling onMediaReady callback...');
       this.onMediaReady();
+    } else {
+      console.warn('⚠️ [Player] No onMediaReady callback set!');
     }
   }
 
@@ -380,25 +398,31 @@ export class WebAVPlayer {
    * 加载媒体文件
    */
   async loadFile(file) {
+    console.log('🎬 [Player] loadFile() called with:', file);
+    
     this.reset();
     this.setLoading(true);
     
     try {
       if (file instanceof File) {
-        // 本地文件
+        console.log('📁 [Player] Loading local file...');
         await this.loadLocalFile(file);
       } else if (typeof file === 'string') {
-        // URL
+        console.log('🌐 [Player] Loading URL...');
         await this.loadFromURL(file);
       } else {
         throw new Error('Unsupported file type');
       }
+      
+      console.log('✅ [Player] File load process completed');
+      
     } catch (error) {
-      console.error('Failed to load file:', error);
+      console.error('❌ [Player] Failed to load file:', error);
       this.setLoading(false);
       if (this.onError) {
         this.onError(error);
       }
+      throw error; // 重新抛出错误以便上层处理
     }
   }
 
@@ -577,17 +601,49 @@ export class WebAVPlayer {
    * 播放
    */
   async play() {
+    console.log('▶️ [Player] play() called');
+    console.log('🎬 [Player] Current state check:', {
+      hasMediaInfo: !!this.mediaInfo,
+      hasDecoder: !!this.decoder,
+      hasRenderer: !!this.renderer,
+      hasAudioPlayer: !!this.audioPlayer,
+      duration: this.duration,
+      currentTime: this.currentTime
+    });
+    
     if (!this.mediaInfo) {
-      console.warn('No media loaded');
+      console.warn('⚠️ [Player] No media loaded - cannot play');
+      return;
+    }
+    
+    if (!this.decoder) {
+      console.error('❌ [Player] No decoder available - cannot play');
+      return;
+    }
+    
+    if (!this.renderer) {
+      console.error('❌ [Player] No renderer available - cannot play');
       return;
     }
 
+    console.log('✅ [Player] All components ready, starting playback...');
     this.isPlaying = true;
-    await this.audioPlayer.play();
+    
+    try {
+      await this.audioPlayer.play();
+      console.log('🔊 [Player] Audio player started successfully');
+    } catch (error) {
+      console.error('❌ [Player] Failed to start audio player:', error);
+    }
     
     if (this.onPlayStateChange) {
+      console.log('📢 [Player] Calling onPlayStateChange(true)');
       this.onPlayStateChange(true);
+    } else {
+      console.warn('⚠️ [Player] No onPlayStateChange callback set');
     }
+    
+    console.log('✅ [Player] Play initiated successfully');
   }
 
   /**

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 WebAV播放器调试指南</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            line-height: 1.6;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        h1 { text-align: center; margin-bottom: 30px; }
+        .step {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #4CAF50;
+        }
+        .step h3 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        .code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+        .btn {
+            display: inline-block;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 8px;
+            margin: 10px 10px 10px 0;
+            transition: all 0.3s;
+        }
+        .btn:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        .warning {
+            background: rgba(255, 152, 0, 0.2);
+            border-left: 4px solid #FF9800;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .success {
+            background: rgba(76, 175, 80, 0.2);
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .logs {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 WebAV播放器调试指南</h1>
+        
+        <div class="warning">
+            <strong>⚠️ 重要说明：</strong> 我已经在播放器中添加了详细的调试日志。现在可以精确找出为什么上传后不能播放的原因。
+        </div>
+
+        <div class="step">
+            <h3>📋 步骤1: 打开播放器并准备调试</h3>
+            <p>点击下面的按钮打开播放器，然后按F12打开开发者工具。</p>
+            <a href="http://localhost:9000" target="_blank" class="btn">🎬 打开播放器</a>
+        </div>
+
+        <div class="step">
+            <h3>🔧 步骤2: 打开浏览器控制台</h3>
+            <p><strong>在播放器页面按下以下快捷键之一：</strong></p>
+            <div class="code">
+                Windows/Linux: F12 或 Ctrl+Shift+I<br>
+                Mac: Cmd+Option+I
+            </div>
+            <p>然后点击 <strong>"Console"</strong> 标签页。</p>
+        </div>
+
+        <div class="step">
+            <h3>📁 步骤3: 上传文件并观察日志</h3>
+            <p>现在上传一个MP4视频文件，控制台会显示详细的调试信息：</p>
+            <div class="logs">
+📁 [App] Starting loadFile process...<br>
+📄 [App] File details: {name: "test.mp4", size: 1024000, type: "video/mp4"}<br>
+⏳ [App] Starting loading process...<br>
+🎬 [App] Calling player.loadFile...<br>
+🎬 [Player] loadFile() called with: File...<br>
+📁 [Player] Loading local file...<br>
+✅ [Player] File load process completed<br>
+🎯 [Player] handleMediaReady called with info: {...}<br>
+📢 [Player] Calling onMediaReady callback...<br>
+🎛️ [App] enableControls() called<br>
+✅ [App] All controls enabled successfully
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>▶️ 步骤4: 尝试播放并查看错误</h3>
+            <p>点击播放按钮，控制台会显示播放过程的详细信息：</p>
+            <div class="logs">
+🎮 [App] togglePlay() called<br>
+🎵 [App] Current player state: {playing: false, duration: 120.5, ...}<br>
+▶️ [App] Starting playback...<br>
+▶️ [Player] play() called<br>
+🎬 [Player] Current state check: {hasMediaInfo: true, hasDecoder: true, ...}<br>
+✅ [Player] All components ready, starting playback...<br>
+🔊 [Player] Audio player started successfully<br>
+📢 [Player] Calling onPlayStateChange(true)<br>
+✅ [Player] Play initiated successfully
+            </div>
+        </div>
+
+        <div class="step">
+            <h3>🚨 步骤5: 找出问题所在</h3>
+            <p><strong>请查看控制台中的以下关键信息：</strong></p>
+            <ul>
+                <li>❌ 红色的错误信息</li>
+                <li>⚠️ 黄色的警告信息</li>
+                <li>🔍 组件初始化状态 (hasDecoder, hasRenderer, hasAudioPlayer)</li>
+                <li>📊 媒体信息解析结果</li>
+                <li>🎮 播放器状态变化</li>
+            </ul>
+        </div>
+
+        <div class="success">
+            <strong>✅ 预期看到的成功流程：</strong><br>
+            1. 文件加载 → 解析器初始化 → 媒体信息就绪<br>
+            2. 解码器初始化 → 渲染器初始化 → 音频播放器初始化<br>
+            3. 控件启用 → 点击播放 → 播放状态变为true<br>
+            4. 音频/视频开始播放
+        </div>
+
+        <div class="step">
+            <h3>📝 步骤6: 报告问题</h3>
+            <p>复制控制台中的<strong>完整错误信息</strong>，包括：</p>
+            <ul>
+                <li>所有❌红色错误</li>
+                <li>播放器状态信息</li>
+                <li>文件详细信息</li>
+            </ul>
+            <p>然后告诉我具体的错误内容，我会立即修复！</p>
+        </div>
+
+        <div class="step">
+            <h3>🎯 快速测试</h3>
+            <p>如果你想快速测试浏览器兼容性：</p>
+            <button onclick="runQuickTest()" class="btn">🧪 运行快速测试</button>
+            <div id="test-results"></div>
+        </div>
+    </div>
+
+    <script>
+        function runQuickTest() {
+            const results = document.getElementById('test-results');
+            results.innerHTML = '<div class="logs" style="margin-top: 15px;">测试中...</div>';
+            
+            setTimeout(() => {
+                const tests = [];
+                
+                // WebGL测试
+                try {
+                    const canvas = document.createElement('canvas');
+                    const gl = canvas.getContext('webgl2');
+                    tests.push(`✅ WebGL2: ${gl ? '支持' : '不支持'}`);
+                } catch(e) {
+                    tests.push(`❌ WebGL2: 错误 - ${e.message}`);
+                }
+                
+                // WebGPU测试
+                tests.push(`${navigator.gpu ? '✅' : '❌'} WebGPU: ${navigator.gpu ? '支持' : '不支持'}`);
+                
+                // AudioWorklet测试
+                const hasAudioWorklet = 'AudioWorklet' in window;
+                tests.push(`${hasAudioWorklet ? '✅' : '❌'} AudioWorklet: ${hasAudioWorklet ? '支持' : '不支持'}`);
+                
+                // WebCodecs测试
+                const hasWebCodecs = 'VideoDecoder' in window;
+                tests.push(`${hasWebCodecs ? '✅' : '❌'} WebCodecs: ${hasWebCodecs ? '支持' : '不支持'}`);
+                
+                // SharedArrayBuffer测试
+                const hasSAB = typeof SharedArrayBuffer !== 'undefined';
+                tests.push(`${hasSAB ? '✅' : '❌'} SharedArrayBuffer: ${hasSAB ? '支持' : '不支持'}`);
+                
+                results.innerHTML = `
+                    <div class="logs" style="margin-top: 15px;">
+                        <strong>🧪 浏览器兼容性测试结果：</strong><br><br>
+                        ${tests.join('<br>')}
+                        <br><br>
+                        <strong>📝 建议：</strong><br>
+                        ${tests.filter(t => t.includes('❌')).length === 0 ? 
+                            '✅ 浏览器完全兼容，问题可能在播放器逻辑中' : 
+                            '⚠️ 某些功能不支持，可能影响播放器性能'
+                        }
+                    </div>
+                `;
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
