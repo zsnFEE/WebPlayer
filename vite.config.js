@@ -18,5 +18,18 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
+  },
+  define: {
+    global: 'globalThis',
+  },
+  resolve: {
+    alias: {
+      // 为Node.js模块提供浏览器polyfill
+      crypto: 'crypto-browserify',
+      stream: 'stream-browserify',
+      buffer: 'buffer',
+      process: 'process/browser',
+      util: 'util',
+    }
   }
 });

@@ -1,3 +1,6 @@
+// 首先加载polyfills修复浏览器兼容性问题
+import './utils/polyfills.js';
+
 import { WebAVPlayer } from './player.js';
 
 /**

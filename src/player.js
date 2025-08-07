@@ -90,7 +90,7 @@ export class WebAVPlayer {
       await this.initDecoder();
       
       // 设置解析器回调
-      this.setupParserCallbacks();
+      await this.setupParserCallbacks();
       
       // 设置音频播放器回调
       this.setupAudioCallbacks();
@@ -197,7 +197,10 @@ export class WebAVPlayer {
   /**
    * 设置解析器回调 - 增强版
    */
-  setupParserCallbacks() {
+  async setupParserCallbacks() {
+    // 首先初始化解析器
+    await this.parser.init();
+    
     this.parser.onReady = (info) => {
       this.handleMediaReady(info);
     };

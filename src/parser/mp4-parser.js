@@ -1,4 +1,19 @@
-import MP4Box from 'mp4box';
+// 动态导入MP4Box以避免初始化时的crypto错误
+let MP4Box = null;
+
+async function getMP4Box() {
+  if (!MP4Box) {
+    try {
+      const mp4boxModule = await import('mp4box');
+      MP4Box = mp4boxModule.default || mp4boxModule;
+    } catch (error) {
+      console.error('Failed to load MP4Box:', error);
+      throw new Error('MP4Box is required for video parsing');
+    }
+  }
+  return MP4Box;
+}
+
 import { StreamLoader } from '../utils/stream-loader.js';
 
 /**
@@ -30,31 +45,39 @@ export class MP4Parser {
   /**
    * 初始化解析器
    */
-  init() {
-    this.mp4boxfile = MP4Box.createFile();
-    
-    // 监听信息解析完成
-    this.mp4boxfile.onReady = (info) => {
-      this.handleReady(info);
-    };
+  async init() {
+    try {
+      // 动态加载MP4Box
+      const MP4BoxLib = await getMP4Box();
+      this.mp4boxfile = MP4BoxLib.createFile();
+      
+      // 监听信息解析完成
+      this.mp4boxfile.onReady = (info) => {
+        this.handleReady(info);
+      };
 
-    // 监听样本数据
-    this.mp4boxfile.onSamples = (id, user, samples) => {
-      this.handleSamples(id, user, samples);
-    };
+      // 监听样本数据
+      this.mp4boxfile.onSamples = (id, user, samples) => {
+        this.handleSamples(id, user, samples);
+      };
 
-    // 监听错误
-    this.mp4boxfile.onError = (error) => {
-      console.error('MP4Box error:', error);
-      if (this.onError) {
-        this.onError(error);
-      }
-    };
+      // 监听错误
+      this.mp4boxfile.onError = (error) => {
+        console.error('MP4Box error:', error);
+        if (this.onError) {
+          this.onError(error);
+        }
+      };
 
-    // 设置流式加载器回调
-    this.setupStreamLoader();
+      // 设置流式加载器回调
+      this.setupStreamLoader();
 
-    console.log('MP4 parser initialized with streaming support');
+      console.log('MP4 parser initialized with streaming support');
+      
+    } catch (error) {
+      console.error('Failed to initialize MP4 parser:', error);
+      throw error;
+    }
   }
 
   /**

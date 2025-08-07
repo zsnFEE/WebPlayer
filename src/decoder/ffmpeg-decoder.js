@@ -1,17 +1,29 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
-
 /**
  * FFmpeg.wasm 解码器 (WebCodecs 后备方案)
  */
 export class FFmpegDecoder {
   constructor() {
-    this.ffmpeg = new FFmpeg();
+    this.ffmpeg = null;
     this.isLoaded = false;
     this.onVideoFrame = null;
     this.onAudioFrame = null;
     this.videoProcessing = false;
     this.audioProcessing = false;
+    this.initializationPromise = null;
+  }
+
+  /**
+   * 检查FFmpeg支持
+   */
+  checkSupport() {
+    try {
+      // 检查基本的WebAssembly支持
+      return typeof WebAssembly !== 'undefined' && 
+             typeof SharedArrayBuffer !== 'undefined';
+    } catch (error) {
+      console.warn('FFmpeg support check failed:', error);
+      return false;
+    }
   }
 
   /**
@@ -19,12 +31,36 @@ export class FFmpegDecoder {
    */
   async init() {
     if (this.isLoaded) return;
+    if (this.initializationPromise) return this.initializationPromise;
 
+    this.initializationPromise = this._initializeFFmpeg();
+    return this.initializationPromise;
+  }
+
+  async _initializeFFmpeg() {
     try {
+      // 检查支持
+      if (!this.checkSupport()) {
+        throw new Error('FFmpeg not supported in this environment');
+      }
+
+      // 动态导入FFmpeg以避免初始化错误
+      const { FFmpeg } = await import('@ffmpeg/ffmpeg');
+      const { toBlobURL } = await import('@ffmpeg/util');
+      
+      this.ffmpeg = new FFmpeg();
+
       // 加载FFmpeg核心文件
       const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+      
+      // 设置日志处理
       this.ffmpeg.on('log', ({ message }) => {
         console.log('FFmpeg:', message);
+      });
+
+      // 设置进度处理
+      this.ffmpeg.on('progress', ({ progress, time }) => {
+        console.log(`FFmpeg progress: ${progress}% (${time}s)`);
       });
 
       await this.ffmpeg.load({
@@ -34,9 +70,15 @@ export class FFmpegDecoder {
 
       this.isLoaded = true;
       console.log('FFmpeg loaded successfully');
+      
     } catch (error) {
       console.error('Failed to load FFmpeg:', error);
-      throw error;
+      this.isLoaded = false;
+      
+      // 重置初始化Promise以允许重试
+      this.initializationPromise = null;
+      
+      throw new Error(`FFmpeg initialization failed: ${error.message}`);
     }
   }
 
