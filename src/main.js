@@ -333,22 +333,9 @@ class App {
         console.log('Player state:', state);
         console.log('✅ [App] State check completed successfully');
         
-        // 直接检查并触发媒体就绪
-        if (this.player.mediaInfo) {
-          console.log('🔧 [App] 检测到mediaInfo，直接触发onMediaReady');
-          this.hideLoading();
-          this.enableControls();
-        } else {
-          console.log('⚠️ [App] 没有检测到mediaInfo，等待MP4解析完成');
-          // 如果没有mediaInfo，500ms后再检查一次
-          setTimeout(() => {
-            if (this.player.mediaInfo && this.playBtn.disabled) {
-              console.log('🔧 [App] 延迟检测到mediaInfo，启用控件');
-              this.hideLoading();
-              this.enableControls();
-            }
-          }, 500);
-        }
+        // 主动等待mediaInfo解析完成
+        console.log('⏳ [App] 等待MP4解析完成...');
+        this.waitForMediaInfo();
         
       } catch (error) {
         console.error('❌ [App] Error checking player state:', error);
@@ -658,6 +645,39 @@ class App {
     if (this.fullscreenBtn) {
       this.fullscreenBtn.disabled = true;
     }
+  }
+
+  /**
+   * 等待mediaInfo解析完成
+   */
+  waitForMediaInfo() {
+    let attempts = 0;
+    const maxAttempts = 20; // 最多等待10秒（每500ms检查一次）
+    
+    const checkMediaInfo = () => {
+      attempts++;
+      console.log(`🔍 [App] 检查mediaInfo (尝试 ${attempts}/${maxAttempts})`);
+      
+      if (this.player.mediaInfo) {
+        console.log('✅ [App] mediaInfo检测成功，启用控件');
+        this.hideLoading();
+        this.enableControls();
+        return;
+      }
+      
+      if (attempts < maxAttempts) {
+        console.log(`⏳ [App] mediaInfo未就绪，${500}ms后重试...`);
+        setTimeout(checkMediaInfo, 500);
+      } else {
+        console.error('❌ [App] mediaInfo检测超时，强制启用控件');
+        this.hideLoading();
+        this.enableControls();
+        this.showError('媒体解析超时，但播放器已就绪');
+      }
+    };
+    
+    // 立即开始第一次检查
+    checkMediaInfo();
   }
 
   /**

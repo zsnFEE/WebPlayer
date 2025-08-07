@@ -250,6 +250,7 @@ export class MP4Parser {
       if (!this.mp4boxfile) {
         console.log('🔧 [MP4Parser] MP4Box not initialized, initializing...');
         await this.init();
+        console.log('✅ [MP4Parser] Re-initialization completed');
       }
 
       // 再次检查MP4Box是否成功初始化
@@ -295,13 +296,21 @@ export class MP4Parser {
         console.log('🚀 [MP4Parser] Starting MP4Box processing...');
         this.mp4boxfile.start();
         
-        // 设置超时检查
+        // 立即尝试检查信息（某些文件可能已经就绪）
         setTimeout(() => {
           if (!this.isInitialized) {
-            console.warn('⚠️ [MP4Parser] MP4Box onReady not triggered after 3 seconds');
+            console.log('🔍 [MP4Parser] Immediate info check...');
             this.checkForcedInfo();
           }
-        }, 3000);
+        }, 100);
+        
+        // 再次检查（1秒后）
+        setTimeout(() => {
+          if (!this.isInitialized) {
+            console.warn('⚠️ [MP4Parser] MP4Box onReady still not triggered after 1 second, forcing info check again');
+            this.checkForcedInfo();
+          }
+        }, 1000);
       }
       
       return nextExpectedOffset;
