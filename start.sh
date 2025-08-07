@@ -32,5 +32,6 @@ echo ""
 echo "🛑 按 Ctrl+C 停止服务器"
 echo "=========================="
 
-# 启动服务器
-python3 server.py $PORT
+# 启动服务器（使用Python内置HTTP服务器）
+echo "🌍 使用Python内置HTTP服务器..."
+python3 -m http.server $PORT --bind 0.0.0.0
