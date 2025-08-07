@@ -207,13 +207,7 @@ export class MP4Parser {
       }
     }
 
-    // 开始提取样本数据
-    if (this.videoTrack) {
-      this.mp4boxfile.start();
-    }
-    if (this.audioTrack) {
-      this.mp4boxfile.start();
-    }
+    // 注意：不在这里自动开始样本提取，由播放器控制
 
     this.isInitialized = true;
     

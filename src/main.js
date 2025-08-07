@@ -200,9 +200,10 @@ class App {
 
       // 媒体加载完成后的回调
       this.player.onMediaReady = () => {
+        console.log('🎉 [App] onMediaReady callback triggered!');
         this.hideLoading();
         this.enableControls();
-        console.log('Media ready, controls enabled');
+        console.log('✅ [App] Media ready, controls enabled');
       };
       
       // ★ 关键修复：初始化播放器组件
@@ -332,14 +333,22 @@ class App {
         console.log('Player state:', state);
         console.log('✅ [App] State check completed successfully');
         
-        // 临时修复：如果onMediaReady没有被触发，5秒后强制启用控件
-        setTimeout(() => {
-          if (this.playBtn.disabled) {
-            console.log('🔧 [App] onMediaReady未触发，强制启用控件');
-            this.hideLoading();
-            this.enableControls();
-          }
-        }, 5000);
+        // 直接检查并触发媒体就绪
+        if (this.player.mediaInfo) {
+          console.log('🔧 [App] 检测到mediaInfo，直接触发onMediaReady');
+          this.hideLoading();
+          this.enableControls();
+        } else {
+          console.log('⚠️ [App] 没有检测到mediaInfo，等待MP4解析完成');
+          // 如果没有mediaInfo，500ms后再检查一次
+          setTimeout(() => {
+            if (this.player.mediaInfo && this.playBtn.disabled) {
+              console.log('🔧 [App] 延迟检测到mediaInfo，启用控件');
+              this.hideLoading();
+              this.enableControls();
+            }
+          }, 500);
+        }
         
       } catch (error) {
         console.error('❌ [App] Error checking player state:', error);

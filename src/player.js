@@ -733,6 +733,9 @@ export class WebAVPlayer {
       console.error('❌ [Player] Failed to start audio player:', error);
     }
     
+    // 开始样本提取和解码循环
+    this.startPlaybackLoop();
+    
     if (this.onPlayStateChange) {
       console.log('📢 [Player] Calling onPlayStateChange(true)');
       this.onPlayStateChange(true);
@@ -744,9 +747,51 @@ export class WebAVPlayer {
   }
 
   /**
+   * 开始播放循环
+   */
+  startPlaybackLoop() {
+    console.log('🔄 [Player] Starting playback loop...');
+    
+    if (!this.isPlaying) {
+      console.log('⏸️ [Player] Not playing, stopping loop');
+      return;
+    }
+    
+    // 请求样本数据进行解码
+    if (this.parser && this.parser.mp4boxfile) {
+      try {
+        // 启动MP4Box样本提取
+        if (this.parser.videoTrack) {
+          console.log('🎬 [Player] Starting video sample extraction...');
+          this.parser.mp4boxfile.setExtractionOptions(this.parser.videoTrack.id, null, {
+            nbSamples: 10 // 批量提取样本
+          });
+        }
+        
+        if (this.parser.audioTrack) {
+          console.log('🔊 [Player] Starting audio sample extraction...');
+          this.parser.mp4boxfile.setExtractionOptions(this.parser.audioTrack.id, null, {
+            nbSamples: 10 // 批量提取样本
+          });
+        }
+        
+        // 启动处理
+        this.parser.mp4boxfile.start();
+        console.log('✅ [Player] Sample extraction started');
+        
+      } catch (error) {
+        console.error('❌ [Player] Failed to start sample extraction:', error);
+      }
+    } else {
+      console.error('❌ [Player] Parser or MP4Box not available for playback');
+    }
+  }
+
+  /**
    * 暂停
    */
   pause() {
+    console.log('⏸️ [Player] pause() called');
     this.isPlaying = false;
     this.audioPlayer.pause();
     
