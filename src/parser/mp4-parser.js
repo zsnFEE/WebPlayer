@@ -249,9 +249,12 @@ export class MP4Parser {
    * 添加数据块
    */
   async appendBuffer(buffer) {
+    console.log('📦 [MP4Parser] appendBuffer called');
+    
     try {
       // 确保MP4Box已初始化
       if (!this.mp4boxfile) {
+        console.log('🔧 [MP4Parser] MP4Box not initialized, initializing...');
         await this.init();
       }
 
@@ -280,21 +283,63 @@ export class MP4Parser {
         throw new Error('Empty or invalid ArrayBuffer');
       }
       
+      console.log(`📊 [MP4Parser] Processing buffer: ${arrayBuffer.byteLength} bytes`);
+      
       // 设置文件位置信息
       arrayBuffer.fileStart = this.bufferOffset;
       this.bufferOffset += arrayBuffer.byteLength;
 
+      console.log('⬆️ [MP4Parser] Calling mp4boxfile.appendBuffer...');
+      
       // 添加到MP4Box
       const nextExpectedOffset = this.mp4boxfile.appendBuffer(arrayBuffer);
+      
+      console.log(`✅ [MP4Parser] appendBuffer successful, next offset: ${nextExpectedOffset}`);
+      
+      // 立即启动处理，确保onReady被触发
+      if (!this.isInitialized) {
+        console.log('🚀 [MP4Parser] Starting MP4Box processing...');
+        this.mp4boxfile.start();
+        
+        // 设置超时检查
+        setTimeout(() => {
+          if (!this.isInitialized) {
+            console.warn('⚠️ [MP4Parser] MP4Box onReady not triggered after 3 seconds');
+            this.checkForcedInfo();
+          }
+        }, 3000);
+      }
       
       return nextExpectedOffset;
       
     } catch (error) {
-      console.error('Error in appendBuffer:', error);
+      console.error('❌ [MP4Parser] Error in appendBuffer:', error);
       if (this.onError) {
         this.onError(error);
       }
       throw error;
+    }
+  }
+
+  /**
+   * 强制检查MP4信息（当onReady未触发时）
+   */
+  checkForcedInfo() {
+    console.log('🔍 [MP4Parser] Attempting to force get MP4 info...');
+    
+    if (this.mp4boxfile) {
+      try {
+        // 尝试强制获取信息
+        const info = this.mp4boxfile.getInfo && this.mp4boxfile.getInfo();
+        if (info && info.tracks && info.tracks.length > 0) {
+          console.log('✅ [MP4Parser] Force info retrieval successful!');
+          this.handleReady(info);
+        } else {
+          console.warn('⚠️ [MP4Parser] Force info retrieval failed - no tracks found');
+        }
+      } catch (error) {
+        console.error('❌ [MP4Parser] Force info retrieval error:', error);
+      }
     }
   }
 

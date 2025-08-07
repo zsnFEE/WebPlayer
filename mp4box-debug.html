@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 MP4Box 调试工具</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #f0f0f0;
+            line-height: 1.6;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #444;
+        }
+        h1 { color: #4CAF50; text-align: center; }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        button, input[type="file"] {
+            padding: 10px 15px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        button:hover { background: #0056b3; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        
+        .log-container {
+            background: #1e1e1e;
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 14px;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px 5px;
+            border-radius: 3px;
+        }
+        .success { background: rgba(76, 175, 80, 0.2); color: #4CAF50; }
+        .error { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+        .info { background: rgba(33, 150, 243, 0.2); color: #2196F3; }
+        .warning { background: rgba(255, 152, 0, 0.2); color: #FF9800; }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .status-card {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .status-card h3 {
+            margin: 0 0 10px 0;
+            color: #007bff;
+        }
+        
+        .status-value {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .json-display {
+            background: #1e1e1e;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 MP4Box 调试工具</h1>
+        
+        <div class="controls">
+            <input type="file" id="fileInput" accept="video/*,audio/*">
+            <button onclick="clearLog()">清除日志</button>
+            <button onclick="testMP4Box()">测试MP4Box</button>
+        </div>
+        
+        <div class="status-grid">
+            <div class="status-card">
+                <h3>📁 文件信息</h3>
+                <div id="fileInfo">等待文件选择...</div>
+            </div>
+            
+            <div class="status-card">
+                <h3>📦 MP4Box状态</h3>
+                <div id="mp4boxStatus">未初始化</div>
+            </div>
+            
+            <div class="status-card">
+                <h3>🎬 媒体信息</h3>
+                <div id="mediaInfo">无</div>
+            </div>
+            
+            <div class="status-card">
+                <h3>📊 轨道信息</h3>
+                <div id="trackInfo">无</div>
+            </div>
+        </div>
+        
+        <div class="log-container" id="logContainer"></div>
+        
+        <div class="status-card">
+            <h3>🔍 详细数据</h3>
+            <div class="json-display" id="jsonDisplay">等待数据...</div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
+    <script>
+        let mp4boxFile = null;
+        let currentFile = null;
+        let receivedInfo = null;
+        let tracksFound = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logContainer = document.getElementById('logContainer');
+            
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            
+            const icons = {
+                success: '✅',
+                error: '❌', 
+                warning: '⚠️',
+                info: '📝'
+            };
+            
+            entry.innerHTML = `[${timestamp}] ${icons[type] || '📝'} ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+            
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+        }
+
+        function updateStatus(elementId, content) {
+            document.getElementById(elementId).innerHTML = content;
+        }
+
+        function updateJsonDisplay(data) {
+            document.getElementById('jsonDisplay').textContent = JSON.stringify(data, null, 2);
+        }
+
+        function testMP4Box() {
+            log('🧪 测试MP4Box基本功能', 'info');
+            
+            if (typeof MP4Box === 'undefined') {
+                log('❌ MP4Box未加载', 'error');
+                updateStatus('mp4boxStatus', '<span style="color: #f44336;">❌ 未加载</span>');
+                return;
+            }
+            
+            try {
+                const testFile = MP4Box.createFile();
+                log('✅ MP4Box创建成功', 'success');
+                updateStatus('mp4boxStatus', '<span class="status-value">✅ 可用</span>');
+                
+                // 测试基本方法
+                log(`MP4Box版本信息可用: ${!!testFile.appendBuffer}`, 'info');
+                log(`支持文件操作: ${!!testFile.start}`, 'info');
+                log(`支持回调设置: ${!!testFile.onReady}`, 'info');
+                
+            } catch (error) {
+                log(`❌ MP4Box测试失败: ${error.message}`, 'error');
+                updateStatus('mp4boxStatus', '<span style="color: #f44336;">❌ 错误</span>');
+            }
+        }
+
+        // 文件选择处理
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            currentFile = file;
+            
+            // 更新文件信息
+            const fileInfoHtml = `
+                <strong>名称:</strong> ${file.name}<br>
+                <strong>大小:</strong> ${(file.size / 1024 / 1024).toFixed(2)} MB<br>
+                <strong>类型:</strong> ${file.type}<br>
+                <strong>修改:</strong> ${new Date(file.lastModified).toLocaleString()}
+            `;
+            updateStatus('fileInfo', fileInfoHtml);
+            
+            log(`📁 文件选择: ${file.name} (${file.size} bytes)`, 'info');
+            log(`文件类型: ${file.type}`, 'info');
+            
+            // 开始MP4Box解析
+            await parseWithMP4Box(file);
+        });
+
+        async function parseWithMP4Box(file) {
+            log('🔄 开始MP4Box解析...', 'info');
+            updateStatus('mp4boxStatus', '🔄 解析中...');
+            
+            try {
+                // 检查MP4Box
+                if (typeof MP4Box === 'undefined') {
+                    throw new Error('MP4Box未加载');
+                }
+                
+                // 创建MP4Box文件实例
+                mp4boxFile = MP4Box.createFile();
+                log('✅ MP4Box文件实例创建成功', 'success');
+                
+                // 设置回调函数
+                mp4boxFile.onError = function(error) {
+                    log(`❌ MP4Box错误: ${error}`, 'error');
+                    updateStatus('mp4boxStatus', '<span style="color: #f44336;">❌ 解析错误</span>');
+                };
+                
+                mp4boxFile.onReady = function(info) {
+                    log('🎯 MP4Box onReady 回调触发!', 'success');
+                    receivedInfo = info;
+                    handleMP4Info(info);
+                };
+                
+                mp4boxFile.onSamples = function(id, user, samples) {
+                    log(`📦 收到样本数据: track ${id}, ${samples.length} samples`, 'info');
+                };
+                
+                log('✅ MP4Box回调函数设置完成', 'success');
+                
+                // 读取文件数据
+                const arrayBuffer = await file.arrayBuffer();
+                log(`📖 文件读取完成: ${arrayBuffer.byteLength} bytes`, 'success');
+                
+                // 设置文件起始位置
+                arrayBuffer.fileStart = 0;
+                
+                // 添加数据到MP4Box
+                log('⬆️ 向MP4Box添加数据...', 'info');
+                const nextExpectedOffset = mp4boxFile.appendBuffer(arrayBuffer);
+                log(`✅ 数据添加成功, 下次期望偏移: ${nextExpectedOffset}`, 'success');
+                
+                // 开始处理
+                log('🚀 启动MP4Box处理...', 'info');
+                mp4boxFile.start();
+                log('✅ MP4Box start() 调用完成', 'success');
+                
+                // 等待回调
+                log('⏳ 等待MP4Box解析结果...', 'info');
+                
+                // 5秒后检查状态
+                setTimeout(() => {
+                    if (!receivedInfo) {
+                        log('⚠️ 5秒后仍未收到MP4Box回调，可能解析失败', 'warning');
+                        updateStatus('mp4boxStatus', '<span style="color: #FF9800;">⚠️ 超时</span>');
+                        
+                        // 尝试强制获取信息
+                        tryForceGetInfo();
+                    }
+                }, 5000);
+                
+            } catch (error) {
+                log(`❌ MP4Box解析异常: ${error.message}`, 'error');
+                log(`错误堆栈: ${error.stack}`, 'error');
+                updateStatus('mp4boxStatus', '<span style="color: #f44336;">❌ 异常</span>');
+            }
+        }
+
+        function handleMP4Info(info) {
+            log('🎉 MP4解析成功!', 'success');
+            updateStatus('mp4boxStatus', '<span class="status-value">✅ 解析成功</span>');
+            
+            // 更新媒体信息
+            const mediaInfoHtml = `
+                <strong>时长:</strong> ${(info.duration / info.timescale).toFixed(2)}s<br>
+                <strong>时间刻度:</strong> ${info.timescale}<br>
+                <strong>轨道数:</strong> ${info.tracks.length}<br>
+                <strong>品牌:</strong> ${info.brands?.join(', ') || 'N/A'}
+            `;
+            updateStatus('mediaInfo', mediaInfoHtml);
+            
+            // 分析轨道
+            tracksFound = [];
+            let trackInfoHtml = '';
+            
+            info.tracks.forEach(track => {
+                tracksFound.push(track);
+                trackInfoHtml += `
+                    <strong>轨道 ${track.id}:</strong><br>
+                    类型: ${track.type}<br>
+                    编解码器: ${track.codec}<br>
+                    ${track.type === 'video' ? `分辨率: ${track.video?.width}x${track.video?.height}<br>` : ''}
+                    ${track.type === 'audio' ? `声道: ${track.audio?.channel_count}<br>采样率: ${track.audio?.sample_rate}Hz<br>` : ''}
+                    <hr>
+                `;
+            });
+            
+            updateStatus('trackInfo', trackInfoHtml || '无轨道');
+            
+            // 显示完整JSON
+            updateJsonDisplay({
+                基本信息: {
+                    duration: info.duration,
+                    timescale: info.timescale,
+                    durationInSeconds: info.duration / info.timescale,
+                    brands: info.brands
+                },
+                轨道信息: info.tracks.map(track => ({
+                    id: track.id,
+                    type: track.type,
+                    codec: track.codec,
+                    ...track.video && { video: track.video },
+                    ...track.audio && { audio: track.audio }
+                })),
+                完整信息: info
+            });
+            
+            log(`📊 解析结果 - 时长: ${(info.duration / info.timescale).toFixed(2)}s, 轨道: ${info.tracks.length}`, 'success');
+            
+            info.tracks.forEach(track => {
+                log(`🎵 轨道 ${track.id}: ${track.type} (${track.codec})`, 'info');
+            });
+        }
+
+        function tryForceGetInfo() {
+            log('🔍 尝试强制获取MP4信息...', 'warning');
+            
+            if (mp4boxFile) {
+                try {
+                    // 尝试获取信息
+                    const info = mp4boxFile.getInfo();
+                    if (info) {
+                        log('✅ 强制获取信息成功!', 'success');
+                        handleMP4Info(info);
+                    } else {
+                        log('❌ 强制获取信息失败', 'error');
+                    }
+                } catch (error) {
+                    log(`❌ 强制获取信息异常: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // 页面加载完成时测试MP4Box
+        window.addEventListener('load', () => {
+            log('🚀 页面加载完成', 'info');
+            setTimeout(testMP4Box, 1000);
+        });
+    </script>
+</body>
+</html>
