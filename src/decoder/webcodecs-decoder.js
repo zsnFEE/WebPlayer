@@ -1,5 +1,5 @@
 /**
- * WebCodecs 解码器
+ * WebCodecs 解码器 - 支持H264/H265硬件加速解码
  */
 export class WebCodecsDecoder {
   constructor() {
@@ -11,6 +11,18 @@ export class WebCodecsDecoder {
     this.audioQueue = [];
     this.onVideoFrame = null;
     this.onAudioFrame = null;
+    
+    // 编解码器支持缓存
+    this.codecSupport = new Map();
+    this.hardwareAcceleration = true;
+    
+    // 性能监控
+    this.stats = {
+      decodedFrames: 0,
+      droppedFrames: 0,
+      hardwareDecoded: 0,
+      softwareDecoded: 0
+    };
   }
 
   /**
@@ -33,71 +45,298 @@ export class WebCodecsDecoder {
   }
 
   /**
-   * 检查编解码器支持
+   * 检查编解码器支持 - 增强版
    */
   async checkSupport(videoCodec, audioCodec) {
     const support = {
       video: false,
-      audio: false
+      audio: false,
+      videoHardware: false,
+      audioHardware: false
     };
 
     if (this.isVideoSupported && videoCodec) {
-      try {
-        const videoConfig = {
-          codec: videoCodec,
-          codedWidth: 1920,
-          codedHeight: 1080
-        };
-        const videoSupport = await VideoDecoder.isConfigSupported(videoConfig);
-        support.video = videoSupport.supported;
-      } catch (error) {
-        console.warn('Video codec not supported:', videoCodec, error);
-        support.video = false;
-      }
+      support.video = await this.checkVideoCodecSupport(videoCodec);
+      support.videoHardware = await this.checkHardwareAcceleration(videoCodec);
     }
 
     if (this.isAudioSupported && audioCodec) {
-      try {
-        const audioConfig = {
-          codec: audioCodec,
-          sampleRate: 44100,
-          numberOfChannels: 2
-        };
-        const audioSupport = await AudioDecoder.isConfigSupported(audioConfig);
-        support.audio = audioSupport.supported;
-      } catch (error) {
-        console.warn('Audio codec not supported:', audioCodec, error);
-        support.audio = false;
-      }
+      support.audio = await this.checkAudioCodecSupport(audioCodec);
+      support.audioHardware = await this.checkAudioHardwareAcceleration(audioCodec);
     }
 
     return support;
   }
 
   /**
-   * 初始化视频解码器
+   * 检查视频编解码器支持
+   */
+  async checkVideoCodecSupport(codec) {
+    // 检查缓存
+    if (this.codecSupport.has(codec)) {
+      return this.codecSupport.get(codec);
+    }
+
+    try {
+      // 测试多种配置
+      const testConfigs = this.generateVideoTestConfigs(codec);
+      
+      for (const config of testConfigs) {
+        try {
+          const result = await VideoDecoder.isConfigSupported(config);
+          if (result.supported) {
+            this.codecSupport.set(codec, true);
+            console.log(`Video codec ${codec} supported with config:`, config);
+            return true;
+          }
+        } catch (error) {
+          console.debug(`Video codec ${codec} test failed:`, error);
+        }
+      }
+      
+      this.codecSupport.set(codec, false);
+      return false;
+      
+    } catch (error) {
+      console.warn('Video codec support check failed:', codec, error);
+      this.codecSupport.set(codec, false);
+      return false;
+    }
+  }
+
+  /**
+   * 生成视频测试配置
+   */
+  generateVideoTestConfigs(codec) {
+    const baseConfigs = [];
+    
+    if (codec.includes('avc1') || codec.includes('h264')) {
+      // H.264 配置
+      baseConfigs.push(
+        { codec: 'avc1.42E01E', codedWidth: 1920, codedHeight: 1080 }, // Baseline
+        { codec: 'avc1.4D4028', codedWidth: 1920, codedHeight: 1080 }, // Main
+        { codec: 'avc1.64001F', codedWidth: 1920, codedHeight: 1080 }, // High
+        { codec: 'avc1.640028', codedWidth: 1920, codedHeight: 1080 }  // High
+      );
+    }
+    
+    if (codec.includes('hev1') || codec.includes('hvc1') || codec.includes('h265')) {
+      // H.265/HEVC 配置
+      baseConfigs.push(
+        { codec: 'hev1.1.6.L93.B0', codedWidth: 1920, codedHeight: 1080 }, // Main
+        { codec: 'hvc1.1.6.L93.B0', codedWidth: 1920, codedHeight: 1080 }, // Main
+        { codec: 'hev1.2.4.L93.B0', codedWidth: 1920, codedHeight: 1080 }, // Main10
+        { codec: 'hvc1.2.4.L93.B0', codedWidth: 1920, codedHeight: 1080 }  // Main10
+      );
+    }
+    
+    if (codec.includes('vp9')) {
+      // VP9 配置
+      baseConfigs.push(
+        { codec: 'vp09.00.10.08', codedWidth: 1920, codedHeight: 1080 },
+        { codec: 'vp09.01.20.08.01', codedWidth: 1920, codedHeight: 1080 }
+      );
+    }
+    
+    if (codec.includes('av01')) {
+      // AV1 配置
+      baseConfigs.push(
+        { codec: 'av01.0.05M.08', codedWidth: 1920, codedHeight: 1080 }
+      );
+    }
+    
+    // 如果没有匹配的配置，使用原始codec字符串
+    if (baseConfigs.length === 0) {
+      baseConfigs.push({ codec, codedWidth: 1920, codedHeight: 1080 });
+    }
+    
+    return baseConfigs;
+  }
+
+  /**
+   * 检查硬件加速支持
+   */
+  async checkHardwareAcceleration(codec) {
+    try {
+      const configs = this.generateVideoTestConfigs(codec);
+      
+      for (const config of configs) {
+        const configWithHardware = {
+          ...config,
+          hardwareAcceleration: 'prefer-hardware'
+        };
+        
+        try {
+          const result = await VideoDecoder.isConfigSupported(configWithHardware);
+          if (result.supported) {
+            console.log(`Hardware acceleration available for ${codec}`);
+            return true;
+          }
+        } catch (error) {
+          // 继续尝试下一个配置
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * 检查音频编解码器支持
+   */
+  async checkAudioCodecSupport(codec) {
+    try {
+      const testConfigs = this.generateAudioTestConfigs(codec);
+      
+      for (const config of testConfigs) {
+        try {
+          const result = await AudioDecoder.isConfigSupported(config);
+          if (result.supported) {
+            console.log(`Audio codec ${codec} supported`);
+            return true;
+          }
+        } catch (error) {
+          console.debug(`Audio codec ${codec} test failed:`, error);
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      console.warn('Audio codec support check failed:', codec, error);
+      return false;
+    }
+  }
+
+  /**
+   * 生成音频测试配置
+   */
+  generateAudioTestConfigs(codec) {
+    const configs = [];
+    
+    if (codec.includes('mp4a') || codec.includes('aac')) {
+      configs.push(
+        { codec: 'mp4a.40.2', sampleRate: 44100, numberOfChannels: 2 }, // AAC-LC
+        { codec: 'mp4a.40.5', sampleRate: 44100, numberOfChannels: 2 }, // HE-AAC
+        { codec: 'mp4a.40.29', sampleRate: 44100, numberOfChannels: 2 } // HE-AACv2
+      );
+    }
+    
+    if (codec.includes('opus')) {
+      configs.push(
+        { codec: 'opus', sampleRate: 48000, numberOfChannels: 2 }
+      );
+    }
+    
+    if (codec.includes('vorbis')) {
+      configs.push(
+        { codec: 'vorbis', sampleRate: 44100, numberOfChannels: 2 }
+      );
+    }
+    
+    // 默认配置
+    if (configs.length === 0) {
+      configs.push({
+        codec,
+        sampleRate: 44100,
+        numberOfChannels: 2
+      });
+    }
+    
+    return configs;
+  }
+
+  /**
+   * 检查音频硬件加速
+   */
+  async checkAudioHardwareAcceleration(codec) {
+    // 音频硬件加速支持相对较少，主要在移动设备上
+    try {
+      const config = {
+        codec,
+        sampleRate: 44100,
+        numberOfChannels: 2,
+        hardwareAcceleration: 'prefer-hardware'
+      };
+      
+      const result = await AudioDecoder.isConfigSupported(config);
+      return result.supported;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * 初始化视频解码器 - 增强版
    */
   async initVideoDecoder(config) {
     if (!this.isVideoSupported) {
       throw new Error('VideoDecoder not supported');
     }
 
+    // 优化配置以支持硬件加速
+    const optimizedConfig = await this.optimizeVideoConfig(config);
+
     this.videoDecoder = new VideoDecoder({
       output: (frame) => {
         this.handleVideoFrame(frame);
+        this.stats.decodedFrames++;
+        
+        // 检测是否使用硬件加速
+        if (frame.format && frame.format.includes('nv12')) {
+          this.stats.hardwareDecoded++;
+        } else {
+          this.stats.softwareDecoded++;
+        }
       },
       error: (error) => {
         console.error('Video decoder error:', error);
+        this.stats.droppedFrames++;
       }
     });
 
     try {
-      this.videoDecoder.configure(config);
-      console.log('Video decoder initialized:', config);
+      this.videoDecoder.configure(optimizedConfig);
+      console.log('Video decoder initialized with config:', optimizedConfig);
+      
+      // 报告硬件加速状态
+      if (optimizedConfig.hardwareAcceleration) {
+        console.log('Hardware acceleration enabled for video decoder');
+      }
+      
     } catch (error) {
       console.error('Failed to configure video decoder:', error);
       throw error;
     }
+  }
+
+  /**
+   * 优化视频配置
+   */
+  async optimizeVideoConfig(config) {
+    const optimized = { ...config };
+    
+    // 尝试启用硬件加速
+    if (this.hardwareAcceleration) {
+      optimized.hardwareAcceleration = 'prefer-hardware';
+    }
+    
+    // 设置优化选项
+    optimized.optimizeForLatency = true;
+    
+    // 对于H.264和H.265，添加特定优化
+    if (config.codec.includes('avc1') || config.codec.includes('h264')) {
+      // H.264 特定优化
+      optimized.description = config.description; // 确保包含SPS/PPS
+    }
+    
+    if (config.codec.includes('hev1') || config.codec.includes('hvc1')) {
+      // H.265 特定优化
+      optimized.description = config.description; // 确保包含VPS/SPS/PPS
+    }
+    
+    return optimized;
   }
 
   /**

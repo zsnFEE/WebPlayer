@@ -1,7 +1,8 @@
 import MP4Box from 'mp4box';
+import { StreamLoader } from '../utils/stream-loader.js';
 
 /**
- * MP4 解析器
+ * MP4 解析器 - 支持流式解析和快速起播
  */
 export class MP4Parser {
   constructor() {
@@ -14,6 +15,16 @@ export class MP4Parser {
     this.onSamples = null;
     this.onError = null;
     this.bufferOffset = 0;
+    
+    // 流式加载相关
+    this.streamLoader = new StreamLoader();
+    this.isStreaming = false;
+    this.fastStartup = false;
+    this.minBufferForStart = 64 * 1024; // 64KB最小缓冲用于启动
+    
+    // 回调函数
+    this.onProgress = null;
+    this.onFastStartReady = null;
   }
 
   /**
@@ -40,7 +51,79 @@ export class MP4Parser {
       }
     };
 
-    console.log('MP4 parser initialized');
+    // 设置流式加载器回调
+    this.setupStreamLoader();
+
+    console.log('MP4 parser initialized with streaming support');
+  }
+
+  /**
+   * 设置流式加载器
+   */
+  setupStreamLoader() {
+    this.streamLoader.onChunk = (chunk, offset) => {
+      this.handleStreamChunk(chunk, offset);
+    };
+    
+    this.streamLoader.onProgress = (loaded, total) => {
+      if (this.onProgress) {
+        this.onProgress(loaded, total);
+      }
+      
+      // 检查是否可以快速起播
+      if (!this.fastStartup && loaded >= this.minBufferForStart && this.streamLoader.moovBoxFound) {
+        this.fastStartup = true;
+        if (this.onFastStartReady) {
+          this.onFastStartReady();
+        }
+      }
+    };
+    
+    this.streamLoader.onError = (error) => {
+      if (this.onError) {
+        this.onError(error);
+      }
+    };
+  }
+
+  /**
+   * 处理流式数据块
+   */
+  handleStreamChunk(chunk, offset) {
+    try {
+      // 为MP4Box准备数据
+      const buffer = chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength);
+      buffer.fileStart = this.bufferOffset;
+      
+      // 向MP4Box传递数据
+      this.mp4boxfile.appendBuffer(buffer);
+      this.bufferOffset += chunk.length;
+      
+      // 定期刷新以处理新数据
+      this.mp4boxfile.flush();
+      
+    } catch (error) {
+      console.error('Error processing stream chunk:', error);
+      if (this.onError) {
+        this.onError(error);
+      }
+    }
+  }
+
+  /**
+   * 从URL流式加载文件
+   */
+  async loadFromStream(url) {
+    this.isStreaming = true;
+    
+    try {
+      await this.streamLoader.startStream(url);
+    } catch (error) {
+      console.error('Stream loading failed:', error);
+      if (this.onError) {
+        this.onError(error);
+      }
+    }
   }
 
   /**
@@ -55,38 +138,39 @@ export class MP4Parser {
       if (track.type === 'video' && !this.videoTrack) {
         this.videoTrack = track;
         console.log('Video track found:', track);
+        
+        // 设置提取参数
+        this.mp4boxfile.setExtractionOptions(track.id, null, {
+          nbSamples: 100 // 批量提取100个样本
+        });
+        
       } else if (track.type === 'audio' && !this.audioTrack) {
         this.audioTrack = track;
         console.log('Audio track found:', track);
+        
+        // 设置提取参数
+        this.mp4boxfile.setExtractionOptions(track.id, null, {
+          nbSamples: 100 // 批量提取100个样本
+        });
       }
     }
 
-    // 设置提取选项
+    // 开始提取样本数据
     if (this.videoTrack) {
-      this.mp4boxfile.setExtractionOptions(this.videoTrack.id, null, {
-        nbSamples: 100 // 每次提取100个样本
-      });
+      this.mp4boxfile.start();
     }
-
     if (this.audioTrack) {
-      this.mp4boxfile.setExtractionOptions(this.audioTrack.id, null, {
-        nbSamples: 100
-      });
+      this.mp4boxfile.start();
     }
 
     this.isInitialized = true;
-
+    
     if (this.onReady) {
       this.onReady({
-        duration: info.duration / info.timescale,
-        hasVideo: !!this.videoTrack,
-        hasAudio: !!this.audioTrack,
-        videoCodec: this.videoTrack?.codec,
-        audioCodec: this.audioTrack?.codec,
-        width: this.videoTrack?.video?.width,
-        height: this.videoTrack?.video?.height,
-        framerate: this.videoTrack?.video?.fps || 30,
-        sampleRate: this.audioTrack?.audio?.sample_rate
+        ...info,
+        isStreaming: this.isStreaming,
+        fastStartup: this.fastStartup,
+        supportsSeek: !this.isStreaming || this.streamLoader.totalBytes > 0
       });
     }
   }
