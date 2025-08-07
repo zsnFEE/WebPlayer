@@ -126,21 +126,35 @@ export class WebAVPlayer {
    * 初始化渲染器
    */
   async initRenderer() {
+    console.log('🎨 [Player] Initializing renderer...');
+    
     try {
       // 尝试使用WebGPU
+      console.log('🚀 [Player] Attempting WebGPU initialization...');
       this.renderer = new WebGPURenderer(this.canvas);
       await this.renderer.init();
-      console.log('Using WebGPU renderer');
+      console.log('✅ [Player] Using WebGPU renderer');
     } catch (error) {
-      console.warn('WebGPU failed, falling back to WebGL:', error);
+      console.warn('⚠️ [Player] WebGPU failed, falling back to WebGL:', error);
+      
+      // 清理失败的WebGPU实例
+      if (this.renderer) {
+        try {
+          this.renderer.destroy();
+        } catch (e) {
+          console.warn('Failed to cleanup WebGPU renderer:', e);
+        }
+        this.renderer = null;
+      }
       
       try {
         // 后备到WebGL
+        console.log('🔄 [Player] Initializing WebGL renderer...');
         this.renderer = new WebGLRenderer(this.canvas);
         await this.renderer.init();
-        console.log('Using WebGL renderer');
+        console.log('✅ [Player] Using WebGL renderer');
       } catch (webglError) {
-        console.error('Both WebGPU and WebGL failed:', webglError);
+        console.error('❌ [Player] Both WebGPU and WebGL failed:', webglError);
         throw new Error('No supported renderer available');
       }
     }

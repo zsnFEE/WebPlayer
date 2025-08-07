@@ -316,13 +316,26 @@ export class WebGPURenderer {
    * 创建uniform缓冲区
    */
   createUniformBuffer() {
+    console.log('🔧 [WebGPU] Creating uniform buffer...');
+    
     // Transform matrix (16 floats) + opacity (1 float) + padding (3 floats) + color matrix (16 floats)
-    const uniformSize = 16 * 4 + 4 + 12 + 16 * 4; // 256 bytes aligned
+    const uniformSize = 16 * 4 + 4 + 12 + 16 * 4; // 256 bytes
+    
+    // WebGPU要求uniform buffer大小必须是256字节对齐
+    const alignedSize = Math.ceil(uniformSize / 256) * 256;
+    
+    console.log('📊 [WebGPU] Buffer size calculation:', {
+      calculated: uniformSize,
+      aligned: alignedSize,
+      finalSize: Math.max(alignedSize, 256)
+    });
     
     this.uniformBuffer = this.device.createBuffer({
-      size: uniformSize,
+      size: Math.max(alignedSize, 256),
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
+    
+    console.log('✅ [WebGPU] Uniform buffer created with size:', this.uniformBuffer.size);
 
     // 初始化uniform数据
     this.updateUniforms();
@@ -332,38 +345,61 @@ export class WebGPURenderer {
    * 更新uniform数据
    */
   updateUniforms(opacity = 1.0, colorMatrix = null) {
-    // 单位矩阵作为默认变换
-    const transform = new Float32Array([
-      1, 0, 0, 0,
-      0, 1, 0, 0,
-      0, 0, 1, 0,
-      0, 0, 0, 1
-    ]);
-
-    // 默认色彩矩阵（RGB恒等变换）
-    const defaultColorMatrix = new Float32Array([
-      1, 0, 0, 0,
-      0, 1, 0, 0,
-      0, 0, 1, 0,
-      0, 0, 0, 1
-    ]);
-
-    const finalColorMatrix = colorMatrix || defaultColorMatrix;
-
-    // 创建uniform数据
-    const uniformData = new ArrayBuffer(256);
-    const uniformView = new Float32Array(uniformData);
+    if (!this.uniformBuffer) {
+      console.warn('⚠️ [WebGPU] No uniform buffer available for update');
+      return;
+    }
     
-    // 设置变换矩阵 (0-15)
-    uniformView.set(transform, 0);
+    console.log('🔄 [WebGPU] Updating uniforms...');
     
-    // 设置透明度 (16)
-    uniformView[16] = opacity;
-    
-    // 设置色彩矩阵 (20-35)
-    uniformView.set(finalColorMatrix, 20);
+    try {
+      // 单位矩阵作为默认变换
+      const transform = new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+      ]);
 
-    this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
+      // 默认色彩矩阵（RGB恒等变换）
+      const defaultColorMatrix = new Float32Array([
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+      ]);
+
+      const finalColorMatrix = colorMatrix || defaultColorMatrix;
+
+      // 获取缓冲区实际大小并创建匹配的数据
+      const bufferSize = this.uniformBuffer.size || 256;
+      const uniformData = new ArrayBuffer(bufferSize);
+      const uniformView = new Float32Array(uniformData);
+      
+      console.log('📊 [WebGPU] Uniform data setup:', {
+        bufferSize: bufferSize,
+        dataSize: uniformData.byteLength,
+        transformSize: transform.length,
+        colorMatrixSize: finalColorMatrix.length
+      });
+      
+      // 设置变换矩阵 (0-15)
+      uniformView.set(transform, 0);
+      
+      // 设置透明度 (16)
+      uniformView[16] = opacity;
+      
+      // 设置色彩矩阵 (20-35) 
+      uniformView.set(finalColorMatrix, 20);
+
+      console.log('⬆️ [WebGPU] Writing buffer data...');
+      this.device.queue.writeBuffer(this.uniformBuffer, 0, uniformData);
+      console.log('✅ [WebGPU] Uniforms updated successfully');
+      
+    } catch (error) {
+      console.error('❌ [WebGPU] Failed to update uniforms:', error);
+      throw error;
+    }
   }
 
   /**
