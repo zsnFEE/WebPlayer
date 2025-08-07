@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
+const FFmpegFixPlugin = require('./webpack.ffmpeg-fix');
 
 module.exports = (env, argv) => {
   const isDev = argv.mode === 'development';
@@ -32,6 +33,11 @@ module.exports = (env, argv) => {
       }
     },
     
+    externals: {
+      'fs': 'empty',
+      'path': 'empty',
+    },
+    
     module: {
       rules: [
         {
@@ -54,6 +60,17 @@ module.exports = (env, argv) => {
       ]
     },
     
+    ignoreWarnings: [
+      {
+        module: /node_modules\/@ffmpeg\/ffmpeg/,
+        message: /Critical dependency/,
+      },
+      {
+        module: /node_modules\/@ffmpeg\/util/,
+        message: /Critical dependency/,
+      }
+    ],
+    
     plugins: [
       new webpack.DefinePlugin({
         'process.env.NODE_ENV': JSON.stringify(argv.mode || 'development'),
@@ -69,7 +86,9 @@ module.exports = (env, argv) => {
         template: './index.html',
         inject: 'body',
         minify: !isDev
-      })
+      }),
+      
+      new FFmpegFixPlugin()
     ],
     
     devServer: {
@@ -88,17 +107,26 @@ module.exports = (env, argv) => {
     optimization: {
       splitChunks: {
         chunks: 'all',
+        maxSize: 1024000,
         cacheGroups: {
-          vendor: {
-            test: /[\\/]node_modules[\\/]/,
-            name: 'vendors',
-            priority: 10,
-            chunks: 'all'
-          },
           ffmpeg: {
             test: /[\\/]node_modules[\\/]@ffmpeg[\\/]/,
             name: 'ffmpeg',
-            priority: 20,
+            priority: 30,
+            chunks: 'all',
+            enforce: true
+          },
+          mp4box: {
+            test: /[\\/]node_modules[\\/]mp4box[\\/]/,
+            name: 'mp4box',
+            priority: 25,
+            chunks: 'all',
+            enforce: true
+          },
+          vendor: {
+            test: /[\\/]node_modules[\\/](?!@ffmpeg)(?!mp4box)/,
+            name: 'vendors',
+            priority: 10,
             chunks: 'all'
           }
         }
