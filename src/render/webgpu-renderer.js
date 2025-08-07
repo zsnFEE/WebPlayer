@@ -405,25 +405,39 @@ export class WebGPURenderer {
   /**
    * 渲染视频帧 - 优化版本
    */
-  async renderFrame(frameData) {
-    if (!this.isInitialized || !frameData) {
+  async renderFrame(imageData, width, height) {
+    console.log('🎬 [WebGPU] renderFrame called:', {
+      hasImageData: !!imageData,
+      width,
+      height,
+      isInitialized: this.isInitialized
+    });
+    
+    if (!this.isInitialized || !imageData || !width || !height) {
+      console.warn('⚠️ [WebGPU] renderFrame: Invalid parameters or not initialized');
       return;
     }
 
     try {
+      const frameData = { imageData, width, height };
+      
       // 如果使用OffscreenCanvas，在后台渲染
       if (this.useOffscreen) {
+        console.log('🖼️ [WebGPU] Rendering to OffscreenCanvas');
         await this.renderToOffscreen(frameData);
         await this.transferToMainCanvas();
       } else {
+        console.log('🖼️ [WebGPU] Rendering to main canvas');
         await this.renderToMainCanvas(frameData);
       }
       
       this.frameCount++;
       this.lastRenderTime = performance.now();
+      console.log('✅ [WebGPU] Frame rendered successfully');
       
     } catch (error) {
-      console.error('Frame rendering failed:', error);
+      console.error('❌ [WebGPU] Frame rendering failed:', error);
+      throw error;
     }
   }
 

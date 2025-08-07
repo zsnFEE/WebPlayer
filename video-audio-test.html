@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 视频音频诊断工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #ffffff;
+        }
+        .section {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #404040;
+        }
+        .test-item {
+            margin: 15px 0;
+            padding: 15px;
+            background: #333;
+            border-radius: 8px;
+            border-left: 4px solid #007acc;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status.success { background: #28a745; color: white; }
+        .status.error { background: #dc3545; color: white; }
+        .status.warning { background: #ffc107; color: black; }
+        .status.info { background: #17a2b8; color: white; }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #005a99; }
+        video, canvas { 
+            max-width: 100%; 
+            border: 2px solid #666; 
+            border-radius: 8px;
+            background: #000;
+        }
+        .log {
+            background: #1e1e1e;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        input[type="file"] {
+            padding: 10px;
+            background: #2a2a2a;
+            border: 2px dashed #666;
+            border-radius: 8px;
+            color: white;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 视频音频诊断工具</h1>
+    <p>用于快速诊断播放器无声音无画面问题</p>
+
+    <!-- 1. 浏览器能力检测 -->
+    <div class="section">
+        <h2>🌐 浏览器能力检测</h2>
+        <div id="browser-capabilities"></div>
+    </div>
+
+    <!-- 2. HTML5 Video测试 -->
+    <div class="section">
+        <h2>📹 HTML5 Video 测试</h2>
+        <input type="file" id="videoFile" accept="video/*">
+        <div class="test-item">
+            <video id="testVideo" controls style="width: 100%; max-width: 600px;"></video>
+        </div>
+        <div id="video-info"></div>
+    </div>
+
+    <!-- 3. Canvas渲染测试 -->
+    <div class="section">
+        <h2>🎨 Canvas 渲染测试</h2>
+        <div class="test-item">
+            <canvas id="testCanvas" width="400" height="300"></canvas>
+            <br>
+            <button onclick="testCanvasRendering()">测试Canvas渲染</button>
+        </div>
+    </div>
+
+    <!-- 4. 音频系统测试 -->
+    <div class="section">
+        <h2>🔊 音频系统测试</h2>
+        <div class="test-item">
+            <button onclick="testAudioContext()">测试AudioContext</button>
+            <button onclick="playTestTone()">播放测试音调</button>
+            <button onclick="stopTestTone()">停止音调</button>
+        </div>
+        <div id="audio-info"></div>
+    </div>
+
+    <!-- 5. 实时日志 -->
+    <div class="section">
+        <h2>📋 实时诊断日志</h2>
+        <button onclick="clearLog()">清除日志</button>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        let audioContext = null;
+        let oscillator = null;
+        let testVideo = null;
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = {
+                info: '#17a2b8',
+                success: '#28a745',
+                error: '#dc3545',
+                warning: '#ffc107'
+            }[type];
+            
+            logEl.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // 浏览器能力检测
+        function checkBrowserCapabilities() {
+            const capabilities = document.getElementById('browser-capabilities');
+            let html = '';
+            
+            const tests = [
+                { name: 'HTML5 Video', test: () => !!document.createElement('video').canPlayType },
+                { name: 'Canvas 2D', test: () => !!document.createElement('canvas').getContext('2d') },
+                { name: 'WebGL', test: () => !!document.createElement('canvas').getContext('webgl') },
+                { name: 'WebGL2', test: () => !!document.createElement('canvas').getContext('webgl2') },
+                { name: 'WebGPU', test: () => !!navigator.gpu },
+                { name: 'AudioContext', test: () => !!(window.AudioContext || window.webkitAudioContext) },
+                { name: 'WebCodecs VideoDecoder', test: () => typeof VideoDecoder !== 'undefined' },
+                { name: 'WebCodecs AudioDecoder', test: () => typeof AudioDecoder !== 'undefined' },
+                { name: 'AudioWorklet', test: () => !!(window.AudioWorklet) },
+                { name: 'OffscreenCanvas', test: () => typeof OffscreenCanvas !== 'undefined' },
+                { name: 'SharedArrayBuffer', test: () => typeof SharedArrayBuffer !== 'undefined' }
+            ];
+
+            tests.forEach(({ name, test }) => {
+                const supported = test();
+                const status = supported ? 'success' : 'error';
+                html += `<div class="test-item">
+                    ${name}: <span class="status ${status}">${supported ? '✅ 支持' : '❌ 不支持'}</span>
+                </div>`;
+                log(`${name}: ${supported ? '支持' : '不支持'}`, supported ? 'success' : 'warning');
+            });
+
+            capabilities.innerHTML = html;
+        }
+
+        // Canvas渲染测试
+        function testCanvasRendering() {
+            const canvas = document.getElementById('testCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (!ctx) {
+                log('Canvas 2D context获取失败', 'error');
+                return;
+            }
+
+            log('开始Canvas渲染测试', 'info');
+            
+            // 清除画布
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制彩色矩形
+            const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'];
+            colors.forEach((color, i) => {
+                ctx.fillStyle = color;
+                ctx.fillRect(i * 60, 50, 50, 100);
+            });
+            
+            // 绘制文字
+            ctx.fillStyle = '#white';
+            ctx.font = '20px Arial';
+            ctx.fillText('Canvas渲染测试', 50, 200);
+            
+            // 绘制动画圆圈
+            let frame = 0;
+            function animate() {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.fillRect(0, 220, canvas.width, 80);
+                
+                ctx.fillStyle = '#00ff00';
+                ctx.beginPath();
+                ctx.arc(200 + Math.sin(frame * 0.1) * 100, 250, 20, 0, Math.PI * 2);
+                ctx.fill();
+                
+                frame++;
+                if (frame < 60) {
+                    requestAnimationFrame(animate);
+                } else {
+                    log('Canvas渲染测试完成', 'success');
+                }
+            }
+            animate();
+        }
+
+        // 音频系统测试
+        function testAudioContext() {
+            try {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) {
+                    log('AudioContext不支持', 'error');
+                    return;
+                }
+
+                audioContext = new AudioContextClass();
+                log(`AudioContext创建成功: ${audioContext.state}, 采样率: ${audioContext.sampleRate}Hz`, 'success');
+                
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().then(() => {
+                        log('AudioContext已激活', 'success');
+                    });
+                }
+
+                document.getElementById('audio-info').innerHTML = `
+                    <div class="test-item">
+                        <strong>AudioContext状态:</strong> ${audioContext.state}<br>
+                        <strong>采样率:</strong> ${audioContext.sampleRate}Hz<br>
+                        <strong>目标延迟:</strong> ${audioContext.baseLatency || 'N/A'}s
+                    </div>
+                `;
+
+            } catch (error) {
+                log(`AudioContext创建失败: ${error.message}`, 'error');
+            }
+        }
+
+        function playTestTone() {
+            if (!audioContext) {
+                testAudioContext();
+                return;
+            }
+
+            try {
+                // 停止之前的音调
+                stopTestTone();
+
+                // 创建440Hz的测试音调
+                oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                
+                oscillator.start();
+                log('播放440Hz测试音调', 'success');
+                
+            } catch (error) {
+                log(`音频播放失败: ${error.message}`, 'error');
+            }
+        }
+
+        function stopTestTone() {
+            if (oscillator) {
+                try {
+                    oscillator.stop();
+                    oscillator = null;
+                    log('停止测试音调', 'info');
+                } catch (error) {
+                    log(`停止音频失败: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // 视频文件测试
+        document.getElementById('videoFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            log(`选择视频文件: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`, 'info');
+
+            testVideo = document.getElementById('testVideo');
+            const url = URL.createObjectURL(file);
+            testVideo.src = url;
+
+            testVideo.addEventListener('loadedmetadata', function() {
+                log(`视频加载成功: ${this.videoWidth}x${this.videoHeight}, 时长: ${this.duration.toFixed(2)}s`, 'success');
+                
+                document.getElementById('video-info').innerHTML = `
+                    <div class="test-item">
+                        <strong>分辨率:</strong> ${this.videoWidth} × ${this.videoHeight}<br>
+                        <strong>时长:</strong> ${this.duration.toFixed(2)}秒<br>
+                        <strong>视频轨道:</strong> ${this.videoTracks ? this.videoTracks.length : 'N/A'}<br>
+                        <strong>音频轨道:</strong> ${this.audioTracks ? this.audioTracks.length : 'N/A'}
+                    </div>
+                `;
+            });
+
+            testVideo.addEventListener('play', () => log('视频开始播放', 'success'));
+            testVideo.addEventListener('pause', () => log('视频暂停', 'info'));
+            testVideo.addEventListener('ended', () => log('视频播放结束', 'info'));
+            testVideo.addEventListener('error', (e) => log(`视频错误: ${e.message || '未知错误'}`, 'error'));
+
+            // 清理URL
+            testVideo.addEventListener('loadstart', () => URL.revokeObjectURL(url));
+        });
+
+        // 页面加载完成后运行检测
+        document.addEventListener('DOMContentLoaded', function() {
+            log('诊断工具启动', 'info');
+            checkBrowserCapabilities();
+            
+            // 自动测试AudioContext
+            setTimeout(testAudioContext, 1000);
+        });
+
+        // 全局错误捕获
+        window.addEventListener('error', function(e) {
+            log(`全局错误: ${e.message} (${e.filename}:${e.lineno})`, 'error');
+        });
+    </script>
+</body>
+</html>

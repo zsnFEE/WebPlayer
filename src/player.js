@@ -625,64 +625,95 @@ export class WebAVPlayer {
    * 处理视频帧
    */
   handleVideoFrame(frame) {
-    this.stats.framesDecoded++;
-    
-    // 使用SharedArrayBuffer存储帧数据
-    const frameBuffer = sharedBufferManager.createVideoFrameBuffer(
-      frame.width,
-      frame.height
-    );
-    
-    frameBuffer.view.set(frame.data);
-    
-    // 添加到队列
-    this.videoFrameQueue.push({
-      buffer: frameBuffer,
-      timestamp: frame.timestamp,
-      width: frame.width,
-      height: frame.height
+    console.log('🎬 [Player] handleVideoFrame called:', {
+      hasFrame: !!frame,
+      width: frame?.width,
+      height: frame?.height,
+      timestamp: frame?.timestamp,
+      hasImageData: !!(frame?.imageData)
     });
     
-    // 渲染帧 (简化版本，实际应该有时序控制)
-    this.renderCurrentFrame();
+    if (!frame || !frame.imageData || !frame.width || !frame.height) {
+      console.warn('⚠️ [Player] Invalid video frame received');
+      return;
+    }
+    
+    this.stats.framesDecoded++;
+    
+    try {
+      // 直接渲染帧，不使用复杂的队列系统
+      if (this.renderer) {
+        console.log('🖼️ [Player] Rendering frame directly to renderer');
+        this.renderer.renderFrame(frame.imageData.data, frame.width, frame.height);
+      } else {
+        console.warn('⚠️ [Player] No renderer available, using fallback Canvas 2D');
+        this.fallbackRender(frame);
+      }
+      
+    } catch (error) {
+      console.error('❌ [Player] Error handling video frame:', error);
+    }
   }
 
   /**
    * 处理音频帧
    */
   handleAudioFrame(frame) {
+    console.log('🔊 [Player] handleAudioFrame called:', {
+      hasFrame: !!frame,
+      dataLength: frame?.data?.length,
+      channelCount: frame?.channelCount,
+      sampleRate: frame?.sampleRate,
+      timestamp: frame?.timestamp
+    });
+    
+    if (!frame || !frame.data || !frame.channelCount) {
+      console.warn('⚠️ [Player] Invalid audio frame received');
+      return;
+    }
+    
     this.stats.audioSamplesDecoded += frame.data.length;
     
-    // 使用SharedArrayBuffer存储音频数据
-    const audioBuffer = sharedBufferManager.createAudioFrameBuffer(
-      frame.data.length / frame.channelCount,
-      frame.channelCount
-    );
-    
-    audioBuffer.view.set(frame.data);
-    
-    // 发送到音频播放器
-    this.audioPlayer.addAudioData(audioBuffer.buffer, frame.timestamp);
+    try {
+      // 直接发送到音频播放器，不使用SharedArrayBuffer
+      if (this.audioPlayer) {
+        console.log('🎵 [Player] Sending audio data to player');
+        this.audioPlayer.addAudioData(frame.data.buffer, frame.timestamp);
+      } else {
+        console.warn('⚠️ [Player] No audio player available for frame');
+      }
+      
+    } catch (error) {
+      console.error('❌ [Player] Error handling audio frame:', error);
+    }
   }
 
+  // renderCurrentFrame method removed - now rendering directly in handleVideoFrame
+
   /**
-   * 渲染当前帧
+   * 降级Canvas 2D渲染
    */
-  renderCurrentFrame() {
-    if (this.videoFrameQueue.length === 0) return;
-    
-    // 简化版本：渲染最新帧
-    const frame = this.videoFrameQueue.shift();
-    
-    if (this.renderer && frame) {
-      this.renderer.renderFrame(
-        frame.buffer.view,
-        frame.width,
-        frame.height
-      );
+  fallbackRender(frame) {
+    try {
+      console.log('🎨 [Player] Using Canvas 2D fallback rendering');
       
-      // 清理已使用的缓冲区
-      sharedBufferManager.removeBuffer(frame.buffer.id);
+      // 设置画布尺寸
+      if (this.canvas.width !== frame.width || this.canvas.height !== frame.height) {
+        this.canvas.width = frame.width;
+        this.canvas.height = frame.height;
+        console.log(`📐 [Player] Canvas resized to ${frame.width}x${frame.height}`);
+      }
+      
+      const ctx = this.canvas.getContext('2d');
+      if (ctx && frame.imageData) {
+        ctx.putImageData(frame.imageData, 0, 0);
+        console.log('✅ [Player] Frame rendered with Canvas 2D');
+      } else {
+        console.error('❌ [Player] Failed to get 2D context or imageData');
+      }
+      
+    } catch (error) {
+      console.error('❌ [Player] Canvas 2D fallback failed:', error);
     }
   }
 
