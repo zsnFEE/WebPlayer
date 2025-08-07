@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📁 文件上传流程测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #ffffff;
+        }
+        .section {
+            background: #2a2a2a;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #404040;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 5px;
+        }
+        .status.success { background: #28a745; color: white; }
+        .status.error { background: #dc3545; color: white; }
+        .status.warning { background: #ffc107; color: black; }
+        .status.info { background: #17a2b8; color: white; }
+        .status.pending { background: #6c757d; color: white; }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #005a99; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        input[type="file"] {
+            padding: 10px;
+            background: #2a2a2a;
+            border: 2px dashed #666;
+            border-radius: 8px;
+            color: white;
+            width: 100%;
+            margin: 10px 0;
+        }
+        .log {
+            background: #1e1e1e;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 6px;
+            border-left: 4px solid #666;
+        }
+        .step.active { border-left-color: #007acc; }
+        .step.success { border-left-color: #28a745; }
+        .step.error { border-left-color: #dc3545; }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #007acc;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <h1>📁 文件上传流程测试</h1>
+    <p>专门测试本地文件上传到播放器的完整流程</p>
+
+    <!-- 文件选择 -->
+    <div class="section">
+        <h2>1. 文件选择</h2>
+        <input type="file" id="fileInput" accept="video/*">
+        <button onclick="testFileRead()" id="testBtn" disabled>开始测试流程</button>
+        <button onclick="clearLog()">清除日志</button>
+        <div id="fileInfo"></div>
+    </div>
+
+    <!-- 测试步骤 -->
+    <div class="section">
+        <h2>2. 测试步骤</h2>
+        <div id="steps">
+            <div class="step" id="step-file">📁 文件读取 <span class="status pending">等待</span></div>
+            <div class="step" id="step-mp4box">📦 MP4Box 初始化 <span class="status pending">等待</span></div>
+            <div class="step" id="step-append">⬆️ 数据添加 <span class="status pending">等待</span></div>
+            <div class="step" id="step-parse">🔍 MP4 解析 <span class="status pending">等待</span></div>
+            <div class="step" id="step-tracks">🎯 轨道发现 <span class="status pending">等待</span></div>
+            <div class="step" id="step-config">⚙️ 解码器配置 <span class="status pending">等待</span></div>
+        </div>
+        <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+    </div>
+
+    <!-- 实时日志 -->
+    <div class="section">
+        <h2>3. 详细日志</h2>
+        <div id="log" class="log"></div>
+    </div>
+
+    <!-- CDN加载MP4Box -->
+    <script src="https://unpkg.com/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
+    
+    <script>
+        let selectedFile = null;
+        let mp4boxFile = null;
+        let totalSteps = 6;
+        let currentStep = 0;
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = {
+                info: '#17a2b8',
+                success: '#28a745',
+                error: '#dc3545',
+                warning: '#ffc107'
+            }[type];
+            
+            logEl.innerHTML += `<span style="color: ${color}">[${timestamp}] ${message}</span>\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function updateStep(stepId, status, message = '') {
+            const step = document.getElementById(stepId);
+            const statusEl = step.querySelector('.status');
+            
+            // 更新状态
+            statusEl.className = `status ${status}`;
+            statusEl.textContent = {
+                'pending': '等待',
+                'active': '进行中',
+                'success': '成功',
+                'error': '失败',
+                'warning': '警告'
+            }[status];
+            
+            // 更新样式
+            step.className = `step ${status}`;
+            
+            if (message) {
+                step.innerHTML = step.innerHTML.split('<span')[0] + `<span class="status ${status}">${statusEl.textContent}</span> - ${message}`;
+            }
+            
+            // 更新进度条
+            if (status === 'success') {
+                currentStep++;
+                updateProgress();
+            }
+        }
+
+        function updateProgress() {
+            const progressBar = document.getElementById('progressBar');
+            const percentage = (currentStep / totalSteps) * 100;
+            progressBar.style.width = percentage + '%';
+        }
+
+        // 文件选择处理
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            selectedFile = e.target.files[0];
+            const testBtn = document.getElementById('testBtn');
+            
+            if (selectedFile) {
+                log(`文件选择: ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)}MB)`, 'info');
+                
+                document.getElementById('fileInfo').innerHTML = `
+                    <div style="margin-top: 10px; padding: 10px; background: #333; border-radius: 6px;">
+                        <strong>文件信息:</strong><br>
+                        名称: ${selectedFile.name}<br>
+                        大小: ${(selectedFile.size / 1024 / 1024).toFixed(2)} MB<br>
+                        类型: ${selectedFile.type}<br>
+                        修改时间: ${new Date(selectedFile.lastModified).toLocaleString()}
+                    </div>
+                `;
+                
+                testBtn.disabled = false;
+                
+                // 重置步骤状态
+                currentStep = 0;
+                updateProgress();
+                ['step-file', 'step-mp4box', 'step-append', 'step-parse', 'step-tracks', 'step-config'].forEach(id => {
+                    updateStep(id, 'pending');
+                });
+            } else {
+                testBtn.disabled = true;
+                document.getElementById('fileInfo').innerHTML = '';
+            }
+        });
+
+        async function testFileRead() {
+            if (!selectedFile) {
+                log('请先选择文件', 'error');
+                return;
+            }
+
+            log('=== 开始文件上传流程测试 ===', 'info');
+            
+            try {
+                // 步骤1: 文件读取
+                updateStep('step-file', 'active');
+                log('步骤1: 开始读取文件...', 'info');
+                
+                const arrayBuffer = await selectedFile.arrayBuffer();
+                log(`文件读取成功: ${arrayBuffer.byteLength} 字节`, 'success');
+                updateStep('step-file', 'success', `${arrayBuffer.byteLength} 字节`);
+
+                // 步骤2: MP4Box初始化
+                updateStep('step-mp4box', 'active');
+                log('步骤2: 初始化MP4Box...', 'info');
+                
+                if (typeof MP4Box === 'undefined') {
+                    throw new Error('MP4Box未加载');
+                }
+                
+                mp4boxFile = MP4Box.createFile();
+                log('MP4Box创建成功', 'success');
+                
+                // 设置回调
+                mp4boxFile.onReady = function(info) {
+                    log('🎯 MP4Box onReady 触发!', 'success');
+                    log(`媒体信息: 时长=${info.duration}ms, 轨道数=${info.tracks.length}`, 'info');
+                    updateStep('step-parse', 'success', `${info.tracks.length}个轨道`);
+                    
+                    // 步骤5: 轨道发现
+                    updateStep('step-tracks', 'active');
+                    analyzeTracksInfo(info);
+                };
+                
+                mp4boxFile.onError = function(error) {
+                    log(`MP4Box错误: ${error}`, 'error');
+                    updateStep('step-parse', 'error', error);
+                };
+                
+                mp4boxFile.onSamples = function(id, user, samples) {
+                    log(`收到轨道 ${id} 的 ${samples.length} 个样本`, 'info');
+                };
+                
+                updateStep('step-mp4box', 'success');
+
+                // 步骤3: 数据添加
+                updateStep('step-append', 'active');
+                log('步骤3: 向MP4Box添加数据...', 'info');
+                
+                arrayBuffer.fileStart = 0;
+                const nextOffset = mp4boxFile.appendBuffer(arrayBuffer);
+                log(`数据添加成功, 下一个偏移: ${nextOffset}`, 'success');
+                updateStep('step-append', 'success', `偏移: ${nextOffset}`);
+
+                // 步骤4: 开始解析
+                updateStep('step-parse', 'active');
+                log('步骤4: 开始MP4解析...', 'info');
+                mp4boxFile.start();
+                
+                // 设置超时检查
+                setTimeout(() => {
+                    if (document.getElementById('step-parse').classList.contains('active')) {
+                        log('⚠️ 3秒后MP4Box onReady仍未触发', 'warning');
+                        updateStep('step-parse', 'warning', '超时，尝试强制获取信息');
+                        
+                        try {
+                            const info = mp4boxFile.getInfo && mp4boxFile.getInfo();
+                            if (info && info.tracks && info.tracks.length > 0) {
+                                log('✅ 强制获取信息成功!', 'success');
+                                mp4boxFile.onReady(info);
+                            } else {
+                                log('❌ 强制获取信息失败', 'error');
+                                updateStep('step-parse', 'error', '无法获取媒体信息');
+                            }
+                        } catch (e) {
+                            log(`强制获取信息错误: ${e.message}`, 'error');
+                            updateStep('step-parse', 'error', e.message);
+                        }
+                    }
+                }, 3000);
+
+            } catch (error) {
+                log(`测试失败: ${error.message}`, 'error');
+                console.error('详细错误:', error);
+                
+                // 更新当前步骤为失败
+                const activeStep = document.querySelector('.step.active');
+                if (activeStep) {
+                    updateStep(activeStep.id, 'error', error.message);
+                }
+            }
+        }
+
+        function analyzeTracksInfo(info) {
+            log('分析轨道信息...', 'info');
+            
+            let videoTrack = null;
+            let audioTrack = null;
+            
+            for (const track of info.tracks) {
+                log(`轨道 ${track.id}: 类型=${track.type}, 编解码器=${track.codec}`, 'info');
+                
+                if (track.type === 'video' && !videoTrack) {
+                    videoTrack = track;
+                    log(`✅ 发现视频轨道: ${track.codec}, ${track.video.width}x${track.video.height}`, 'success');
+                } else if (track.type === 'audio' && !audioTrack) {
+                    audioTrack = track;
+                    log(`✅ 发现音频轨道: ${track.codec}, ${track.audio.channel_count}声道, ${track.audio.sample_rate}Hz`, 'success');
+                }
+            }
+            
+            const tracksFound = [];
+            if (videoTrack) tracksFound.push('视频');
+            if (audioTrack) tracksFound.push('音频');
+            
+            updateStep('step-tracks', 'success', tracksFound.join('+'));
+            
+            // 步骤6: 解码器配置
+            updateStep('step-config', 'active');
+            testDecoderConfig(videoTrack, audioTrack);
+        }
+
+        function testDecoderConfig(videoTrack, audioTrack) {
+            log('测试解码器配置...', 'info');
+            
+            const configs = [];
+            
+            if (videoTrack) {
+                try {
+                    const videoConfig = {
+                        codec: videoTrack.codec,
+                        description: new Uint8Array(videoTrack.description || []),
+                        codedWidth: videoTrack.video.width,
+                        codedHeight: videoTrack.video.height
+                    };
+                    
+                    log(`视频配置: ${JSON.stringify({
+                        codec: videoConfig.codec,
+                        width: videoConfig.codedWidth,
+                        height: videoConfig.codedHeight
+                    })}`, 'info');
+                    
+                    if (typeof VideoDecoder !== 'undefined') {
+                        const isSupported = VideoDecoder.isConfigSupported && VideoDecoder.isConfigSupported(videoConfig);
+                        log(`视频解码器支持检查: ${isSupported ? '支持' : '不支持'}`, isSupported ? 'success' : 'warning');
+                        configs.push('视频');
+                    } else {
+                        log('VideoDecoder API 不可用', 'warning');
+                    }
+                } catch (error) {
+                    log(`视频配置错误: ${error.message}`, 'error');
+                }
+            }
+            
+            if (audioTrack) {
+                try {
+                    const audioConfig = {
+                        codec: audioTrack.codec,
+                        description: new Uint8Array(audioTrack.description || []),
+                        sampleRate: audioTrack.audio.sample_rate,
+                        numberOfChannels: audioTrack.audio.channel_count
+                    };
+                    
+                    log(`音频配置: ${JSON.stringify({
+                        codec: audioConfig.codec,
+                        sampleRate: audioConfig.sampleRate,
+                        channels: audioConfig.numberOfChannels
+                    })}`, 'info');
+                    
+                    if (typeof AudioDecoder !== 'undefined') {
+                        const isSupported = AudioDecoder.isConfigSupported && AudioDecoder.isConfigSupported(audioConfig);
+                        log(`音频解码器支持检查: ${isSupported ? '支持' : '不支持'}`, isSupported ? 'success' : 'warning');
+                        configs.push('音频');
+                    } else {
+                        log('AudioDecoder API 不可用', 'warning');
+                    }
+                } catch (error) {
+                    log(`音频配置错误: ${error.message}`, 'error');
+                }
+            }
+            
+            updateStep('step-config', 'success', configs.join('+') + '配置');
+            
+            log('=== 文件上传流程测试完成 ===', 'success');
+            log(`总结: 成功完成 ${currentStep}/${totalSteps} 个步骤`, 'info');
+        }
+
+        // 页面加载检查
+        document.addEventListener('DOMContentLoaded', function() {
+            log('文件上传流程测试工具已启动', 'info');
+            
+            // 检查MP4Box
+            if (typeof MP4Box === 'undefined') {
+                log('⚠️ MP4Box加载中...', 'warning');
+                setTimeout(() => {
+                    if (typeof MP4Box !== 'undefined') {
+                        log('✅ MP4Box加载成功', 'success');
+                    } else {
+                        log('❌ MP4Box加载失败', 'error');
+                    }
+                }, 2000);
+            } else {
+                log('✅ MP4Box已就绪', 'success');
+            }
+            
+            // 检查WebCodecs支持
+            const hasVideoDecoder = typeof VideoDecoder !== 'undefined';
+            const hasAudioDecoder = typeof AudioDecoder !== 'undefined';
+            log(`WebCodecs支持: 视频=${hasVideoDecoder ? '✅' : '❌'}, 音频=${hasAudioDecoder ? '✅' : '❌'}`, 'info');
+        });
+
+        // 全局错误捕获
+        window.addEventListener('error', function(e) {
+            log(`全局错误: ${e.message} (${e.filename}:${e.lineno})`, 'error');
+        });
+    </script>
+</body>
+</html>

@@ -259,7 +259,7 @@ export class WebAVPlayer {
   /**
    * 处理媒体信息就绪 - 增强版
    */
-  handleMediaReady(info) {
+  async handleMediaReady(info) {
     console.log('🎯 [Player] handleMediaReady called with info:', info);
     
     if (!info) {
@@ -307,8 +307,8 @@ export class WebAVPlayer {
     // 开始解码器初始化
     console.log('⚙️ [Player] Initializing decoders with media info...');
     try {
-      this.initDecodersWithMediaInfo();
-      console.log('✅ [Player] Decoder initialization called successfully');
+      await this.initDecodersWithMediaInfo();
+      console.log('✅ [Player] Decoder initialization completed successfully');
     } catch (error) {
       console.error('❌ [Player] Decoder initialization failed:', error);
     }
@@ -519,12 +519,22 @@ export class WebAVPlayer {
    * 加载本地文件
    */
   async loadLocalFile(file) {
+    console.log('📁 [Player] loadLocalFile started');
+    
     try {
+      console.log('📖 [Player] Reading file as ArrayBuffer...');
       const arrayBuffer = await file.arrayBuffer();
+      
+      console.log(`📊 [Player] File read complete: ${arrayBuffer.byteLength} bytes`);
+      
+      console.log('📦 [Player] Sending to parser...');
       await this.parser.appendBuffer(arrayBuffer);
-      this.parser.start();
+      
+      console.log('✅ [Player] Local file processing initiated');
+      // 注意：不需要调用 this.parser.start()，appendBuffer内部已经处理
+      
     } catch (error) {
-      console.error('Failed to load local file:', error);
+      console.error('❌ [Player] Failed to load local file:', error);
       if (this.onError) {
         this.onError(error);
       }
