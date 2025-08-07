@@ -27,6 +27,14 @@ class App {
     this.volumeSlider = document.getElementById('volume-slider');
     this.speedSelector = document.getElementById('speed-selector');
     this.loading = document.getElementById('loading');
+    
+    // 验证关键元素是否存在
+    if (!this.canvas) {
+      console.error('Video canvas not found');
+      return;
+    }
+    
+    console.log('DOM elements initialized successfully');
   }
 
   /**

@@ -2,19 +2,19 @@
  * 浏览器环境polyfills - 修复crypto和Node.js模块兼容性问题
  */
 
-// 修复crypto.getRandomValues问题
+// 修复global对象
 if (typeof global === 'undefined') {
+  window.global = window;
   globalThis.global = globalThis;
 }
 
-// 确保crypto对象存在并具有getRandomValues方法
-if (!globalThis.crypto) {
-  globalThis.crypto = {};
+// 修复crypto.getRandomValues问题
+if (!window.crypto) {
+  window.crypto = {};
 }
 
-if (!globalThis.crypto.getRandomValues) {
-  globalThis.crypto.getRandomValues = function(array) {
-    // 使用Math.random()作为后备方案
+if (!window.crypto.getRandomValues) {
+  window.crypto.getRandomValues = function(array) {
     for (let i = 0; i < array.length; i++) {
       array[i] = Math.floor(Math.random() * 256);
     }
@@ -22,19 +22,9 @@ if (!globalThis.crypto.getRandomValues) {
   };
 }
 
-// 修复Buffer问题
-if (!globalThis.Buffer) {
-  try {
-    const { Buffer } = await import('buffer');
-    globalThis.Buffer = Buffer;
-  } catch (error) {
-    console.warn('Buffer polyfill not available');
-  }
-}
-
-// 修复process问题
-if (!globalThis.process) {
-  globalThis.process = {
+// 修复process对象
+if (!window.process) {
+  window.process = {
     env: {},
     browser: true,
     version: '',
@@ -45,35 +35,21 @@ if (!globalThis.process) {
   };
 }
 
-// 为FFmpeg.wasm修复SharedArrayBuffer检测
-if (typeof SharedArrayBuffer === 'undefined') {
-  globalThis.SharedArrayBuffer = ArrayBuffer;
-  console.warn('SharedArrayBuffer not available, using ArrayBuffer fallback');
-}
-
-// WebAssembly优化
-if (typeof WebAssembly !== 'undefined') {
-  // 确保WebAssembly在工作线程中可用
-  if (typeof importScripts !== 'undefined') {
-    // 在Worker中
-    globalThis.WebAssembly = WebAssembly;
-  }
-}
-
-// 修复URL构造函数问题
-if (!globalThis.URL && typeof URL !== 'undefined') {
-  globalThis.URL = URL;
-}
-
 // 修复performance对象
-if (!globalThis.performance) {
-  globalThis.performance = {
+if (!window.performance) {
+  window.performance = {
     now: () => Date.now(),
     mark: () => {},
     measure: () => {},
     getEntriesByName: () => [],
     getEntriesByType: () => []
   };
+}
+
+// SharedArrayBuffer检测和后备
+if (typeof SharedArrayBuffer === 'undefined') {
+  window.SharedArrayBuffer = ArrayBuffer;
+  console.warn('SharedArrayBuffer not available, using ArrayBuffer fallback');
 }
 
 console.log('Browser polyfills loaded successfully');

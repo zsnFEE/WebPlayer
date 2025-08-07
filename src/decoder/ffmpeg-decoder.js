@@ -10,18 +10,22 @@ export class FFmpegDecoder {
     this.videoProcessing = false;
     this.audioProcessing = false;
     this.initializationPromise = null;
+    this.isSupported = this.checkEnvironmentSupport();
   }
 
   /**
-   * 检查FFmpeg支持
+   * 检查环境支持
    */
-  checkSupport() {
+  checkEnvironmentSupport() {
     try {
-      // 检查基本的WebAssembly支持
-      return typeof WebAssembly !== 'undefined' && 
-             typeof SharedArrayBuffer !== 'undefined';
+      // 检查基本的WebAssembly和SharedArrayBuffer支持
+      const hasWasm = typeof WebAssembly !== 'undefined';
+      const hasSharedBuffer = typeof SharedArrayBuffer !== 'undefined' || typeof ArrayBuffer !== 'undefined';
+      const hasWorker = typeof Worker !== 'undefined';
+      
+      return hasWasm && hasSharedBuffer && hasWorker;
     } catch (error) {
-      console.warn('FFmpeg support check failed:', error);
+      console.warn('FFmpeg environment check failed:', error);
       return false;
     }
   }
@@ -30,8 +34,12 @@ export class FFmpegDecoder {
    * 初始化FFmpeg
    */
   async init() {
-    if (this.isLoaded) return;
+    if (this.isLoaded) return true;
     if (this.initializationPromise) return this.initializationPromise;
+
+    if (!this.isSupported) {
+      throw new Error('FFmpeg is not supported in this environment');
+    }
 
     this.initializationPromise = this._initializeFFmpeg();
     return this.initializationPromise;
@@ -39,47 +47,68 @@ export class FFmpegDecoder {
 
   async _initializeFFmpeg() {
     try {
-      // 检查支持
-      if (!this.checkSupport()) {
-        throw new Error('FFmpeg not supported in this environment');
-      }
-
+      console.log('Initializing FFmpeg.wasm...');
+      
       // 动态导入FFmpeg以避免初始化错误
-      const { FFmpeg } = await import('@ffmpeg/ffmpeg');
-      const { toBlobURL } = await import('@ffmpeg/util');
+      const ffmpegModule = await import('@ffmpeg/ffmpeg');
+      const utilModule = await import('@ffmpeg/util');
+      
+      const FFmpeg = ffmpegModule.FFmpeg || ffmpegModule.default?.FFmpeg;
+      const toBlobURL = utilModule.toBlobURL || utilModule.default?.toBlobURL;
+      
+      if (!FFmpeg || !toBlobURL) {
+        throw new Error('Failed to import FFmpeg modules');
+      }
       
       this.ffmpeg = new FFmpeg();
 
       // 加载FFmpeg核心文件
       const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
       
-      // 设置日志处理
+      // 设置事件监听
       this.ffmpeg.on('log', ({ message }) => {
-        console.log('FFmpeg:', message);
+        console.log('FFmpeg log:', message);
       });
 
-      // 设置进度处理
       this.ffmpeg.on('progress', ({ progress, time }) => {
-        console.log(`FFmpeg progress: ${progress}% (${time}s)`);
+        console.log(`FFmpeg progress: ${Math.round(progress)}% (${time}s)`);
       });
 
+      // 加载核心文件
       await this.ffmpeg.load({
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
       });
 
       this.isLoaded = true;
-      console.log('FFmpeg loaded successfully');
+      console.log('FFmpeg.wasm loaded successfully');
+      return true;
       
     } catch (error) {
-      console.error('Failed to load FFmpeg:', error);
+      console.error('FFmpeg initialization failed:', error);
       this.isLoaded = false;
-      
-      // 重置初始化Promise以允许重试
       this.initializationPromise = null;
       
-      throw new Error(`FFmpeg initialization failed: ${error.message}`);
+      // 提供更详细的错误信息
+      let errorMessage = 'FFmpeg initialization failed';
+      
+      if (error.message.includes('fetch')) {
+        errorMessage = 'Failed to download FFmpeg core files. Check network connection.';
+      } else if (error.message.includes('WebAssembly')) {
+        errorMessage = 'WebAssembly not supported or failed to load.';
+      } else if (error.message.includes('SharedArrayBuffer')) {
+        errorMessage = 'SharedArrayBuffer not available. Try serving over HTTPS.';
+      }
+      
+      throw new Error(`${errorMessage}: ${error.message}`);
     }
+  }
+
+  /**
+   * 检查FFmpeg是否已准备就绪
+   */
+  isReady() {
+    return this.isLoaded && this.ffmpeg;
   }
 
   /**
