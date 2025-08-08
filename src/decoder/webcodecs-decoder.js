@@ -23,6 +23,10 @@ export class WebCodecsDecoder {
       hardwareDecoded: 0,
       softwareDecoded: 0
     };
+    
+    // 关键帧和description跟踪
+    this.hasDescription = false;
+    this.receivedFirstKeyframe = false;
   }
 
   /**
@@ -315,7 +319,13 @@ export class WebCodecsDecoder {
     try {
       console.log('🔧 [WebCodecs] Configuring video decoder...');
       this.videoDecoder.configure(optimizedConfig);
+      
+      // 设置description状态
+      this.hasDescription = !!optimizedConfig.description;
+      this.receivedFirstKeyframe = false; // 重置关键帧状态
+      
       console.log('✅ [WebCodecs] Video decoder initialized with config:', optimizedConfig);
+      console.log('🔍 [WebCodecs] Description available:', this.hasDescription);
       
       // 报告硬件加速状态
       if (optimizedConfig.hardwareAcceleration) {
@@ -345,12 +355,23 @@ export class WebCodecsDecoder {
     // 对于H.264和H.265，添加特定优化
     if (config.codec.includes('avc1') || config.codec.includes('h264')) {
       // H.264 特定优化
-      optimized.description = config.description; // 确保包含SPS/PPS
+      if (config.description) {
+        optimized.description = config.description; // 确保包含SPS/PPS
+        console.log('✅ [WebCodecs] H.264 description provided, size:', config.description.byteLength || config.description.length);
+      } else {
+        console.warn('⚠️ [WebCodecs] No description for H.264, decoder may fail on first non-keyframe');
+        // 对于没有description的H.264，我们仍然尝试配置，但期望第一帧是关键帧
+      }
     }
     
     if (config.codec.includes('hev1') || config.codec.includes('hvc1')) {
       // H.265 特定优化
-      optimized.description = config.description; // 确保包含VPS/SPS/PPS
+      if (config.description) {
+        optimized.description = config.description; // 确保包含VPS/SPS/PPS
+        console.log('✅ [WebCodecs] H.265 description provided, size:', config.description.byteLength || config.description.length);
+      } else {
+        console.warn('⚠️ [WebCodecs] No description for H.265, decoder may fail');
+      }
     }
     
     return optimized;
@@ -466,6 +487,12 @@ export class WebCodecsDecoder {
       return;
     }
 
+    // 如果没有description且还没有收到关键帧，等待关键帧
+    if (!this.hasDescription && !this.receivedFirstKeyframe && !isKeyframe) {
+      console.warn('⚠️ [WebCodecs] Waiting for keyframe (no description provided)');
+      return;
+    }
+
     try {
       const chunk = new EncodedVideoChunk({
         type: isKeyframe ? 'key' : 'delta',
@@ -473,9 +500,23 @@ export class WebCodecsDecoder {
         data: encodedData
       });
 
+      console.log(`🎬 [WebCodecs] Decoding ${isKeyframe ? 'KEY' : 'DELTA'} frame at ${timestamp}s`);
       this.videoDecoder.decode(chunk);
+      
+      // 标记已收到第一个关键帧
+      if (isKeyframe && !this.receivedFirstKeyframe) {
+        this.receivedFirstKeyframe = true;
+        console.log('✅ [WebCodecs] First keyframe received and decoded');
+      }
     } catch (error) {
-      console.error('Video decode error:', error);
+      console.error('❌ [WebCodecs] Video decode error:', error);
+      
+      // 如果是缺少关键帧的错误，提供更详细的信息
+      if (error.message.includes('key frame is required')) {
+        console.error('🔑 [WebCodecs] Key frame required! Current frame type:', isKeyframe ? 'KEY' : 'DELTA');
+        console.error('🔑 [WebCodecs] Has description:', !!this.hasDescription);
+        console.error('🔑 [WebCodecs] Received first keyframe:', !!this.receivedFirstKeyframe);
+      }
     }
   }
 

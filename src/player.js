@@ -523,14 +523,49 @@ export class WebAVPlayer {
   createVideoConfig() {
     const track = this.parser.videoTrack;
     
-    return {
+    console.log('🔍 [Player] Creating video config for track:', track);
+    console.log('🔍 [Player] Available decoder config fields:', {
+      avcDecoderConfigRecord: !!track.avcDecoderConfigRecord,
+      hvcDecoderConfigRecord: !!track.hvcDecoderConfigRecord,
+      avcC: !!track.avcC,
+      hvcC: !!track.hvcC,
+      mp4track: !!track.mp4track
+    });
+    
+    // 尝试多种可能的decoder config record字段名
+    let description = track.avcDecoderConfigRecord || 
+                     track.hvcDecoderConfigRecord || 
+                     track.avcC || 
+                     track.hvcC ||
+                     track.mp4track?.avcDecoderConfigRecord ||
+                     track.mp4track?.hvcDecoderConfigRecord;
+    
+    // 如果还是没有description，但是是H.264，尝试从其他地方获取
+    if (!description && (track.codec.includes('avc1') || track.codec.includes('h264'))) {
+      console.warn('⚠️ [Player] No AVC decoder config record found, attempting to extract from track');
+      // 可以尝试从track的其他属性中提取
+      if (track.mimeCodec) {
+        console.log('🔍 [Player] Track mimeCodec:', track.mimeCodec);
+      }
+    }
+    
+    const config = {
       codec: track.codec,
       codedWidth: track.video.width,
       codedHeight: track.video.height,
-      description: track.avcDecoderConfigRecord || track.hvcDecoderConfigRecord,
       hardwareAcceleration: 'prefer-hardware',
       optimizeForLatency: true
     };
+    
+    // 只有在有description的情况下才添加
+    if (description) {
+      config.description = description;
+      console.log('✅ [Player] Added description to video config, size:', description.byteLength || description.length);
+    } else {
+      console.warn('⚠️ [Player] No description available for video config');
+    }
+    
+    return config;
   }
 
   /**
