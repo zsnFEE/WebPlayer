@@ -256,7 +256,8 @@ export class MP4Parser {
         
         // 设置提取参数
         this.mp4boxfile.setExtractionOptions(track.id, null, {
-          nbSamples: 100 // 批量提取100个样本
+          nbSamples: 100, // 批量提取100个样本
+          rapAlignement: true // 确保从关键帧开始
         });
         
       } else if (track.type === 'audio' && !this.audioTrack) {
@@ -536,13 +537,21 @@ export class MP4Parser {
    * 获取样本数据
    */
   getSampleData(sample) {
-    return {
+    const sampleData = {
       data: new Uint8Array(sample.data),
       timestamp: sample.cts / sample.timescale,
       duration: sample.duration / sample.timescale,
       isSync: sample.is_sync,
       size: sample.size
     };
+    
+    // 为前几个样本添加详细调试
+    if (this.debugSampleCount < 5) {
+      console.log(`🔍 [MP4Parser] Sample ${this.debugSampleCount}: isSync=${sample.is_sync}, timestamp=${sampleData.timestamp.toFixed(3)}s, size=${sample.size}`);
+      this.debugSampleCount = (this.debugSampleCount || 0) + 1;
+    }
+    
+    return sampleData;
   }
 
   /**

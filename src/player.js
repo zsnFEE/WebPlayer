@@ -681,10 +681,15 @@ export class WebAVPlayer {
    * 处理样本数据
    */
   handleSamples(trackId, samples) {
-    for (const sample of samples) {
+    console.log(`🎬 [Player] handleSamples called: trackId=${trackId}, samples=${samples.length}`);
+    
+    for (let i = 0; i < samples.length; i++) {
+      const sample = samples[i];
       const sampleData = this.parser.getSampleData(sample);
       
       if (trackId === this.parser.videoTrack?.id) {
+        console.log(`🎥 [Player] Video sample ${i}: timestamp=${sampleData.timestamp.toFixed(3)}s, isSync=${sampleData.isSync}, size=${sampleData.size}`);
+        
         // 视频样本
         this.decoder.decodeVideo(
           sampleData.data,
@@ -867,7 +872,8 @@ export class WebAVPlayer {
         if (this.parser.videoTrack) {
           console.log('🎬 [Player] Starting video sample extraction...');
           this.parser.mp4boxfile.setExtractionOptions(this.parser.videoTrack.id, null, {
-            nbSamples: 10 // 批量提取样本
+            nbSamples: 10, // 批量提取样本
+            rapAlignement: true // 确保从关键帧开始
           });
         }
         

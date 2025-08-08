@@ -27,6 +27,10 @@ export class WebCodecsDecoder {
     // 关键帧和description跟踪
     this.hasDescription = false;
     this.receivedFirstKeyframe = false;
+    this.keyframeErrors = 0;
+    
+    // 解码器错误回调
+    this.onDecoderError = null;
   }
 
   /**
@@ -500,7 +504,7 @@ export class WebCodecsDecoder {
         data: encodedData
       });
 
-      console.log(`🎬 [WebCodecs] Decoding ${isKeyframe ? 'KEY' : 'DELTA'} frame at ${timestamp}s`);
+      console.log(`🎬 [WebCodecs] Decoding ${isKeyframe ? 'KEY' : 'DELTA'} frame at ${timestamp}s (hasDesc: ${this.hasDescription}, firstKey: ${this.receivedFirstKeyframe})`);
       this.videoDecoder.decode(chunk);
       
       // 标记已收到第一个关键帧
@@ -516,6 +520,16 @@ export class WebCodecsDecoder {
         console.error('🔑 [WebCodecs] Key frame required! Current frame type:', isKeyframe ? 'KEY' : 'DELTA');
         console.error('🔑 [WebCodecs] Has description:', !!this.hasDescription);
         console.error('🔑 [WebCodecs] Received first keyframe:', !!this.receivedFirstKeyframe);
+        
+        // 如果多次出现关键帧错误，建议切换到FFmpeg
+        this.keyframeErrors = (this.keyframeErrors || 0) + 1;
+        if (this.keyframeErrors >= 3) {
+          console.error('🚨 [WebCodecs] Too many keyframe errors, consider switching to FFmpeg decoder');
+          // 可以触发回调通知Player切换解码器
+          if (this.onDecoderError) {
+            this.onDecoderError('KEYFRAME_ERROR', 'Too many keyframe errors, recommend FFmpeg fallback');
+          }
+        }
       }
     }
   }
