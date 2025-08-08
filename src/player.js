@@ -222,6 +222,12 @@ export class WebAVPlayer {
       this.handleMediaReady(info);
     };
     
+    console.log('🔍 [Player] Callback assignment verification:', {
+      onReadyAssigned: typeof this.parser.onReady === 'function',
+      onSamplesAssigned: typeof this.parser.onSamples === 'function',
+      onErrorAssigned: typeof this.parser.onError === 'function'
+    });
+    
     this.parser.onSamples = (trackId, samples) => {
       this.handleSamples(trackId, samples);
     };

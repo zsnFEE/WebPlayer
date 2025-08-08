@@ -259,9 +259,18 @@ export class MP4Parser {
     };
     
     console.log('🎯 [MP4Parser] Sending complete media info:', mediaInfo);
+    console.log('🔍 [MP4Parser] onReady callback check:', {
+      hasOnReady: !!this.onReady,
+      onReadyType: typeof this.onReady,
+      onReadyFunction: this.onReady?.toString().substring(0, 100)
+    });
     
     if (this.onReady) {
+      console.log('📤 [MP4Parser] Calling this.onReady callback...');
       this.onReady(mediaInfo);
+      console.log('✅ [MP4Parser] this.onReady callback completed');
+    } else {
+      console.error('❌ [MP4Parser] No onReady callback set!');
     }
   }
 
@@ -279,13 +288,25 @@ export class MP4Parser {
    */
   async appendBuffer(buffer) {
     console.log('📦 [MP4Parser] appendBuffer called');
+    console.log('🔍 [MP4Parser] onReady status at start:', {
+      hasOnReady: !!this.onReady,
+      onReadyType: typeof this.onReady
+    });
     
     try {
       // 确保MP4Box已初始化
       if (!this.mp4boxfile) {
         console.log('🔧 [MP4Parser] MP4Box not initialized, initializing...');
+        console.log('🔍 [MP4Parser] onReady status before init:', {
+          hasOnReady: !!this.onReady,
+          onReadyType: typeof this.onReady
+        });
         this.init();
         console.log('✅ [MP4Parser] Re-initialization completed');
+        console.log('🔍 [MP4Parser] onReady status after init:', {
+          hasOnReady: !!this.onReady,
+          onReadyType: typeof this.onReady
+        });
       }
 
       // 再次检查MP4Box是否成功初始化
