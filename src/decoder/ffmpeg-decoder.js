@@ -11,6 +11,12 @@ export class FFmpegDecoder {
     this.audioProcessing = false;
     this.initializationPromise = null;
     this.isSupported = this.checkEnvironmentSupport();
+    
+    // 关键帧状态跟踪
+    this.hasReceivedKeyframe = false;
+    this.frameCount = 0;
+    this.videoConfig = null;
+    this.audioConfig = null;
   }
 
   /**
@@ -376,34 +382,76 @@ export class FFmpegDecoder {
    * 解码单个视频样本 - 兼容WebCodecs接口
    */
   async decodeVideo(encodedData, timestamp, isKeyframe = false) {
-    console.log(`🎬 [FFmpeg] decodeVideo called: timestamp=${timestamp}, isKeyframe=${isKeyframe}, size=${encodedData.length}`);
+    console.log(`🎬 [FFmpeg] decodeVideo called: timestamp=${timestamp.toFixed(3)}s, isKeyframe=${isKeyframe}, size=${encodedData.length}`);
     
     if (!this.isLoaded) {
       console.warn('⚠️ [FFmpeg] FFmpeg not loaded, skipping decode');
       return;
     }
 
-    // 简化实现：对于FFmpeg，我们现在暂时跳过单个样本解码
-    // 并模拟一个解码后的帧
+    // 检查关键帧问题
+    if (!isKeyframe && !this.hasReceivedKeyframe) {
+      console.warn(`⚠️ [FFmpeg] Waiting for keyframe, skipping delta frame at ${timestamp.toFixed(3)}s`);
+      return;
+    }
+
+    // 简化实现：生成测试帧验证播放流程
     try {
       if (this.onVideoFrame && this.videoConfig) {
-        // 创建一个模拟的视频帧 - 实际应用中需要用FFmpeg解码
         const width = this.videoConfig.codedWidth || 800;
         const height = this.videoConfig.codedHeight || 600;
         
-        // 创建一个简单的测试图像数据
+        // 创建测试图像数据
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         
-        // 绘制一个简单的测试图案
-        ctx.fillStyle = `hsl(${(timestamp * 60) % 360}, 50%, 50%)`;
-        ctx.fillRect(0, 0, width, height);
+        // 关键帧和Delta帧使用不同的视觉标识
+        if (isKeyframe) {
+          // 关键帧：使用金色边框
+          ctx.fillStyle = `hsl(${(timestamp * 30) % 360}, 70%, 40%)`;
+          ctx.fillRect(0, 0, width, height);
+          
+          // 金色边框
+          ctx.strokeStyle = '#FFD700';
+          ctx.lineWidth = 8;
+          ctx.strokeRect(4, 4, width - 8, height - 8);
+          
+          // 关键帧标记
+          ctx.fillStyle = '#FFD700';
+          ctx.font = 'bold 32px Arial';
+          ctx.fillText('🔑 KEYFRAME', 20, 50);
+          
+          // 标记已收到关键帧
+          this.hasReceivedKeyframe = true;
+          console.log('✅ [FFmpeg] First keyframe received and processed');
+        } else {
+          // Delta帧：使用普通颜色
+          ctx.fillStyle = `hsl(${(timestamp * 60) % 360}, 50%, 30%)`;
+          ctx.fillRect(0, 0, width, height);
+          
+          // 灰色边框
+          ctx.strokeStyle = '#888';
+          ctx.lineWidth = 4;
+          ctx.strokeRect(2, 2, width - 4, height - 4);
+          
+          // Delta帧标记
+          ctx.fillStyle = '#ccc';
+          ctx.font = 'bold 24px Arial';
+          ctx.fillText('📄 DELTA', 20, 50);
+        }
+        
+        // 通用信息
         ctx.fillStyle = 'white';
-        ctx.font = '24px Arial';
-        ctx.fillText(`Time: ${timestamp.toFixed(2)}s`, 20, 50);
-        ctx.fillText(`Frame: ${isKeyframe ? 'KEY' : 'DELTA'}`, 20, 80);
+        ctx.font = '20px Arial';
+        ctx.fillText(`Time: ${timestamp.toFixed(3)}s`, 20, height - 60);
+        ctx.fillText(`Size: ${encodedData.length} bytes`, 20, height - 30);
+        
+        // 帧计数器
+        this.frameCount = (this.frameCount || 0) + 1;
+        ctx.font = '16px Arial';
+        ctx.fillText(`Frame #${this.frameCount}`, width - 150, 30);
         
         const imageData = ctx.getImageData(0, 0, width, height);
         
@@ -414,7 +462,7 @@ export class FFmpegDecoder {
           timestamp: timestamp
         });
         
-        console.log(`✅ [FFmpeg] Mock video frame generated: ${width}x${height} at ${timestamp}s`);
+        console.log(`✅ [FFmpeg] ${isKeyframe ? 'KEYFRAME' : 'DELTA'} frame generated: ${width}x${height} at ${timestamp.toFixed(3)}s`);
       }
     } catch (error) {
       console.error('❌ [FFmpeg] Video decode error:', error);

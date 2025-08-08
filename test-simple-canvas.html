@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎨 简化Canvas测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #222;
+            color: #fff;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        canvas {
+            border: 2px solid #666;
+            border-radius: 8px;
+            background: #000;
+            display: block;
+            margin: 20px auto;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px;
+            font-size: 16px;
+        }
+        button:hover { background: #45a049; }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .log {
+            background: #333;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎨 简化Canvas渲染测试</h1>
+        <p>测试基本的Canvas渲染功能，绕过复杂的解码逻辑</p>
+
+        <canvas id="testCanvas" width="800" height="450"></canvas>
+
+        <div class="controls">
+            <button onclick="testBasicCanvas()">🎨 测试基础Canvas</button>
+            <button onclick="testAnimatedCanvas()">🎬 测试动画Canvas</button>
+            <button onclick="testImageData()">📊 测试ImageData</button>
+            <button onclick="stopAnimation()">⏹️ 停止动画</button>
+            <button onclick="clearCanvas()">🗑️ 清除Canvas</button>
+        </div>
+
+        <div class="log" id="log">
+            Canvas测试准备就绪...<br>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('testCanvas');
+        const ctx = canvas.getContext('2d');
+        let animationId = null;
+        let startTime = null;
+
+        function log(message) {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logEl.innerHTML += `[${timestamp}] ${message}<br>`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(message);
+        }
+
+        // 测试基础Canvas功能
+        window.testBasicCanvas = function() {
+            log('🎨 开始基础Canvas测试...');
+            
+            try {
+                // 清除画布
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // 绘制背景
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // 绘制渐变
+                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                gradient.addColorStop(0, '#16213e');
+                gradient.addColorStop(0.5, '#0f3460');
+                gradient.addColorStop(1, '#e94560');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(50, 50, canvas.width - 100, canvas.height - 100);
+                
+                // 绘制文字
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 32px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Canvas渲染正常!', canvas.width / 2, canvas.height / 2);
+                
+                ctx.font = '16px Arial';
+                ctx.fillText('基础渲染功能测试通过', canvas.width / 2, canvas.height / 2 + 50);
+                
+                log('✅ 基础Canvas测试完成');
+                
+            } catch (error) {
+                log(`❌ 基础Canvas测试失败: ${error.message}`);
+                console.error('Canvas测试错误:', error);
+            }
+        };
+
+        // 测试动画Canvas
+        window.testAnimatedCanvas = function() {
+            log('🎬 开始动画Canvas测试...');
+            
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            
+            startTime = performance.now();
+            
+            function animate(currentTime) {
+                try {
+                    const elapsed = (currentTime - startTime) / 1000; // 秒
+                    
+                    // 清除画布
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 动态背景色
+                    const hue = (elapsed * 30) % 360;
+                    ctx.fillStyle = `hsl(${hue}, 60%, 20%)`;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 旋转的方块
+                    ctx.save();
+                    ctx.translate(canvas.width / 2, canvas.height / 2);
+                    ctx.rotate(elapsed);
+                    
+                    ctx.fillStyle = `hsl(${(hue + 180) % 360}, 80%, 50%)`;
+                    ctx.fillRect(-50, -50, 100, 100);
+                    
+                    ctx.restore();
+                    
+                    // 显示时间信息
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 24px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(`动画时间: ${elapsed.toFixed(2)}s`, canvas.width / 2, 50);
+                    
+                    ctx.font = '16px Arial';
+                    ctx.fillText(`FPS: ${(1000 / (currentTime - (animate.lastTime || currentTime))).toFixed(1)}`, canvas.width / 2, 80);
+                    
+                    animate.lastTime = currentTime;
+                    
+                    // 继续动画
+                    animationId = requestAnimationFrame(animate);
+                    
+                } catch (error) {
+                    log(`❌ 动画渲染错误: ${error.message}`);
+                    console.error('动画错误:', error);
+                }
+            }
+            
+            animationId = requestAnimationFrame(animate);
+            log('✅ 动画Canvas测试开始');
+        };
+
+        // 测试ImageData
+        window.testImageData = function() {
+            log('📊 开始ImageData测试...');
+            
+            try {
+                // 清除画布
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // 创建ImageData
+                const width = 400;
+                const height = 300;
+                const imageData = ctx.createImageData(width, height);
+                const data = imageData.data;
+                
+                // 生成测试图案 (类似解码器输出)
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const index = (y * width + x) * 4;
+                        
+                        // 彩虹图案
+                        const hue = (x / width * 360 + y / height * 180) % 360;
+                        const rgb = hslToRgb(hue / 360, 0.8, 0.6);
+                        
+                        data[index] = rgb[0];     // R
+                        data[index + 1] = rgb[1]; // G  
+                        data[index + 2] = rgb[2]; // B
+                        data[index + 3] = 255;    // A
+                    }
+                }
+                
+                // 将ImageData绘制到Canvas
+                const x = (canvas.width - width) / 2;
+                const y = (canvas.height - height) / 2;
+                ctx.putImageData(imageData, x, y);
+                
+                // 添加标题
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('ImageData渲染测试', canvas.width / 2, 30);
+                
+                ctx.font = '14px Arial';
+                ctx.fillText(`${width}x${height} 像素数据`, canvas.width / 2, canvas.height - 20);
+                
+                log(`✅ ImageData测试完成: ${width}x${height} 像素`);
+                
+            } catch (error) {
+                log(`❌ ImageData测试失败: ${error.message}`);
+                console.error('ImageData测试错误:', error);
+            }
+        };
+
+        // 停止动画
+        window.stopAnimation = function() {
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+                log('⏹️ 动画已停止');
+            }
+        };
+
+        // 清除Canvas
+        window.clearCanvas = function() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            log('🗑️ Canvas已清除');
+        };
+
+        // HSL到RGB转换 (辅助函数)
+        function hslToRgb(h, s, l) {
+            let r, g, b;
+
+            if (s === 0) {
+                r = g = b = l; // achromatic
+            } else {
+                const hue2rgb = (p, q, t) => {
+                    if (t < 0) t += 1;
+                    if (t > 1) t -= 1;
+                    if (t < 1/6) return p + (q - p) * 6 * t;
+                    if (t < 1/2) return q;
+                    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+                    return p;
+                };
+
+                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+                const p = 2 * l - q;
+                r = hue2rgb(p, q, h + 1/3);
+                g = hue2rgb(p, q, h);
+                b = hue2rgb(p, q, h - 1/3);
+            }
+
+            return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+        }
+
+        // 页面加载完成
+        log('🚀 Canvas测试页面加载完成');
+        log('可以测试Canvas的基本渲染功能');
+    </script>
+</body>
+</html>
