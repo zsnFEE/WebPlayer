@@ -1,26 +1,37 @@
-// 动态导入MP4Box以避免初始化时的crypto错误
-let MP4Box = null;
+// 直接导入MP4Box库
+import * as MP4BoxLib from 'mp4box';
 
-async function getMP4Box() {
-  if (!MP4Box) {
-    try {
-      console.log('Loading MP4Box library...');
-      const mp4boxModule = await import('mp4box');
-      MP4Box = mp4boxModule.default || mp4boxModule;
-      
-      // 验证MP4Box对象
-      if (!MP4Box || typeof MP4Box.createFile !== 'function') {
-        throw new Error('MP4Box library does not have required methods');
-      }
-      
-      console.log('MP4Box library loaded successfully');
-    } catch (error) {
-      console.error('Failed to load MP4Box:', error);
-      MP4Box = null; // 重置以便重试
-      throw new Error(`MP4Box is required for video parsing: ${error.message}`);
+/**
+ * 获取MP4Box库 - 简化版本
+ */
+function getMP4Box() {
+  console.log('🔧 [MP4Parser] Getting MP4Box library...');
+  
+  // 尝试各种可能的MP4Box导出方式
+  const candidates = [
+    MP4BoxLib,
+    MP4BoxLib.default,
+    typeof window !== 'undefined' ? window.MP4Box : null
+  ];
+  
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
+    if (candidate && typeof candidate.createFile === 'function') {
+      console.log(`✅ [MP4Parser] Found MP4Box at candidate ${i + 1}`);
+      return candidate;
     }
   }
-  return MP4Box;
+  
+  console.error('❌ [MP4Parser] No valid MP4Box library found');
+  console.log('Debug info:', {
+    MP4BoxLib: !!MP4BoxLib,
+    MP4BoxLibType: typeof MP4BoxLib,
+    MP4BoxLibDefault: !!MP4BoxLib?.default,
+    MP4BoxLibCreateFile: typeof MP4BoxLib?.createFile,
+    windowMP4Box: typeof window?.MP4Box
+  });
+  
+  throw new Error('MP4Box library not available - check import and bundling');
 }
 
 import { StreamLoader } from '../utils/stream-loader.js';
@@ -54,15 +65,15 @@ export class MP4Parser {
   /**
    * 初始化解析器
    */
-  async init() {
+  init() {
     try {
       // 如果已经初始化，直接返回
       if (this.mp4boxfile) {
         return;
       }
 
-      // 动态加载MP4Box
-      const MP4BoxLib = await getMP4Box();
+      // 获取MP4Box库
+      const MP4BoxLib = getMP4Box();
       
       // 确保MP4Box库加载成功
       if (!MP4BoxLib || typeof MP4BoxLib.createFile !== 'function') {
@@ -249,7 +260,7 @@ export class MP4Parser {
       // 确保MP4Box已初始化
       if (!this.mp4boxfile) {
         console.log('🔧 [MP4Parser] MP4Box not initialized, initializing...');
-        await this.init();
+        this.init();
         console.log('✅ [MP4Parser] Re-initialization completed');
       }
 

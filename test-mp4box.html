@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 MP4Box直接测试</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            margin: 0;
+        }
+        .status { 
+            padding: 8px; 
+            margin: 5px 0; 
+            border-radius: 4px; 
+            border-left: 4px solid;
+        }
+        .success { background: #1a3a1a; border-color: #4CAF50; }
+        .error { background: #3a1a1a; border-color: #f44336; }
+        .warning { background: #3a3a1a; border-color: #ff9800; }
+        .info { background: #1a1a3a; border-color: #2196F3; }
+        .log { 
+            background: #111; 
+            padding: 15px; 
+            border-radius: 5px; 
+            max-height: 400px; 
+            overflow-y: auto; 
+            white-space: pre-wrap;
+            font-size: 12px;
+            border: 1px solid #333;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #1976D2; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        input[type="file"] {
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #666;
+            color: white;
+            border-radius: 4px;
+        }
+        .test-section {
+            background: #222;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .step {
+            margin: 8px 0;
+            padding: 8px;
+            border-left: 3px solid #666;
+            background: #333;
+        }
+        .step.active { border-color: #2196F3; background: #1a2a3a; }
+        .step.success { border-color: #4CAF50; background: #1a3a1a; }
+        .step.error { border-color: #f44336; background: #3a1a1a; }
+    </style>
+</head>
+<body>
+    <h1>🔧 MP4Box核心功能测试</h1>
+    <p>专门测试MP4Box库本身是否能正常解析MP4文件</p>
+
+    <!-- MP4Box库状态 -->
+    <div class="test-section">
+        <h3>📦 MP4Box库状态</h3>
+        <div id="mp4box-status"></div>
+        <button onclick="checkMP4BoxVersion()">检查MP4Box版本</button>
+    </div>
+
+    <!-- 基础功能测试 -->
+    <div class="test-section">
+        <h3>🧪 基础功能测试</h3>
+        <div id="basic-tests"></div>
+        <button onclick="runBasicTests()">运行基础测试</button>
+    </div>
+
+    <!-- 文件解析测试 -->
+    <div class="test-section">
+        <h3>📁 文件解析测试</h3>
+        <input type="file" id="testFile" accept="video/*">
+        <button onclick="testFileDirectly()" id="testBtn" disabled>直接测试MP4Box解析</button>
+        
+        <div id="parse-steps">
+            <div class="step" id="step-load">1. 文件加载</div>
+            <div class="step" id="step-create">2. MP4Box实例创建</div>
+            <div class="step" id="step-callbacks">3. 回调函数设置</div>
+            <div class="step" id="step-append">4. 数据添加</div>
+            <div class="step" id="step-start">5. 解析启动</div>
+            <div class="step" id="step-result">6. 解析结果</div>
+        </div>
+    </div>
+
+    <!-- 详细日志 -->
+    <div class="test-section">
+        <h3>📋 详细测试日志</h3>
+        <button onclick="clearLog()">清除日志</button>
+        <div id="log" class="log"></div>
+    </div>
+
+    <!-- 加载MP4Box -->
+    <script src="https://unpkg.com/mp4box@0.5.2/dist/mp4box.all.min.js"></script>
+    
+    <script>
+        let mp4boxFile = null;
+        let testFileData = null;
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: '#2196F3',
+                success: '#4CAF50', 
+                error: '#f44336',
+                warning: '#ff9800'
+            };
+            
+            logEl.innerHTML += `<span style="color: ${colors[type]}">[${timestamp}] ${message}</span>\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function updateStep(stepId, status) {
+            const step = document.getElementById(stepId);
+            step.className = `step ${status}`;
+        }
+
+        function addStatus(containerId, message, type) {
+            const container = document.getElementById(containerId);
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = message;
+            container.appendChild(div);
+        }
+
+        // 检查MP4Box版本和状态
+        function checkMP4BoxVersion() {
+            log('检查MP4Box状态...', 'info');
+            
+            if (typeof MP4Box === 'undefined') {
+                log('❌ MP4Box库未加载', 'error');
+                addStatus('mp4box-status', '❌ MP4Box库未加载', 'error');
+                return;
+            }
+
+            try {
+                log('✅ MP4Box库已加载', 'success');
+                addStatus('mp4box-status', '✅ MP4Box库已加载', 'success');
+                
+                // 检查MP4Box的方法
+                const methods = ['createFile', 'Log', 'TRAK_TYPE_VIDEO', 'TRAK_TYPE_AUDIO'];
+                methods.forEach(method => {
+                    if (MP4Box[method] !== undefined) {
+                        log(`✅ MP4Box.${method} 可用`, 'success');
+                        addStatus('mp4box-status', `✅ ${method} 可用`, 'success');
+                    } else {
+                        log(`❌ MP4Box.${method} 不可用`, 'error');
+                        addStatus('mp4box-status', `❌ ${method} 不可用`, 'error');
+                    }
+                });
+
+                // 尝试创建文件实例
+                const testFile = MP4Box.createFile();
+                if (testFile) {
+                    log('✅ MP4Box.createFile() 成功', 'success');
+                    addStatus('mp4box-status', '✅ createFile() 测试成功', 'success');
+                } else {
+                    log('❌ MP4Box.createFile() 失败', 'error');
+                    addStatus('mp4box-status', '❌ createFile() 测试失败', 'error');
+                }
+
+            } catch (error) {
+                log(`❌ MP4Box检查出错: ${error.message}`, 'error');
+                addStatus('mp4box-status', `❌ 检查出错: ${error.message}`, 'error');
+            }
+        }
+
+        // 运行基础测试
+        function runBasicTests() {
+            log('开始基础功能测试...', 'info');
+            
+            const tests = [
+                {
+                    name: '创建MP4Box实例',
+                    test: () => {
+                        const file = MP4Box.createFile();
+                        return !!file;
+                    }
+                },
+                {
+                    name: '设置onReady回调',
+                    test: () => {
+                        const file = MP4Box.createFile();
+                        file.onReady = () => {};
+                        return typeof file.onReady === 'function';
+                    }
+                },
+                {
+                    name: '设置onError回调',
+                    test: () => {
+                        const file = MP4Box.createFile();
+                        file.onError = () => {};
+                        return typeof file.onError === 'function';
+                    }
+                },
+                {
+                    name: '检查appendBuffer方法',
+                    test: () => {
+                        const file = MP4Box.createFile();
+                        return typeof file.appendBuffer === 'function';
+                    }
+                },
+                {
+                    name: '检查start方法',
+                    test: () => {
+                        const file = MP4Box.createFile();
+                        return typeof file.start === 'function';
+                    }
+                },
+                {
+                    name: '检查getInfo方法',
+                    test: () => {
+                        const file = MP4Box.createFile();
+                        return typeof file.getInfo === 'function';
+                    }
+                }
+            ];
+
+            tests.forEach(({ name, test }) => {
+                try {
+                    const result = test();
+                    if (result) {
+                        log(`✅ ${name} - 通过`, 'success');
+                        addStatus('basic-tests', `✅ ${name}`, 'success');
+                    } else {
+                        log(`❌ ${name} - 失败`, 'error');
+                        addStatus('basic-tests', `❌ ${name}`, 'error');
+                    }
+                } catch (error) {
+                    log(`❌ ${name} - 错误: ${error.message}`, 'error');
+                    addStatus('basic-tests', `❌ ${name} - ${error.message}`, 'error');
+                }
+            });
+        }
+
+        // 文件选择处理
+        document.getElementById('testFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                log(`选择文件: ${file.name} (${(file.size/1024/1024).toFixed(2)}MB)`, 'info');
+                document.getElementById('testBtn').disabled = false;
+                testFileData = file;
+            } else {
+                document.getElementById('testBtn').disabled = true;
+                testFileData = null;
+            }
+        });
+
+        // 直接测试MP4Box文件解析
+        async function testFileDirectly() {
+            if (!testFileData) {
+                log('请先选择文件', 'error');
+                return;
+            }
+
+            log('=== 开始MP4Box直接解析测试 ===', 'info');
+            
+            // 重置所有步骤
+            ['step-load', 'step-create', 'step-callbacks', 'step-append', 'step-start', 'step-result'].forEach(id => {
+                updateStep(id, '');
+            });
+
+            try {
+                // 步骤1: 文件加载
+                updateStep('step-load', 'active');
+                log('步骤1: 读取文件数据...', 'info');
+                
+                const arrayBuffer = await testFileData.arrayBuffer();
+                log(`文件读取成功: ${arrayBuffer.byteLength} 字节`, 'success');
+                updateStep('step-load', 'success');
+
+                // 步骤2: 创建MP4Box实例
+                updateStep('step-create', 'active');
+                log('步骤2: 创建MP4Box实例...', 'info');
+                
+                mp4boxFile = MP4Box.createFile();
+                if (!mp4boxFile) {
+                    throw new Error('MP4Box.createFile() 返回null');
+                }
+                log('MP4Box实例创建成功', 'success');
+                updateStep('step-create', 'success');
+
+                // 步骤3: 设置回调
+                updateStep('step-callbacks', 'active');
+                log('步骤3: 设置回调函数...', 'info');
+                
+                let onReadyCalled = false;
+                let onErrorCalled = false;
+
+                mp4boxFile.onReady = function(info) {
+                    onReadyCalled = true;
+                    log('🎉 onReady回调被触发!', 'success');
+                    log(`解析成功! 找到 ${info.tracks.length} 个轨道`, 'success');
+                    log(`持续时间: ${info.duration}ms, 时间尺度: ${info.timescale}`, 'info');
+                    
+                    updateStep('step-result', 'success');
+                    
+                    info.tracks.forEach((track, index) => {
+                        log(`轨道 ${index + 1}: ${track.type} (${track.codec})`, 'info');
+                    });
+                };
+
+                mp4boxFile.onError = function(error) {
+                    onErrorCalled = true;
+                    log(`❌ onError回调被触发: ${error}`, 'error');
+                    updateStep('step-result', 'error');
+                };
+
+                mp4boxFile.onSamples = function(id, user, samples) {
+                    log(`收到轨道 ${id} 的 ${samples.length} 个样本`, 'info');
+                };
+
+                log('回调函数设置完成', 'success');
+                updateStep('step-callbacks', 'success');
+
+                // 步骤4: 添加数据
+                updateStep('step-append', 'active');
+                log('步骤4: 向MP4Box添加数据...', 'info');
+                
+                // 设置文件开始位置
+                arrayBuffer.fileStart = 0;
+                
+                const nextOffset = mp4boxFile.appendBuffer(arrayBuffer);
+                log(`数据添加成功, 下一个偏移: ${nextOffset}`, 'success');
+                updateStep('step-append', 'success');
+
+                // 步骤5: 启动解析
+                updateStep('step-start', 'active');
+                log('步骤5: 启动MP4Box解析...', 'info');
+                
+                mp4boxFile.start();
+                log('MP4Box.start() 调用完成', 'success');
+                updateStep('step-start', 'success');
+
+                // 等待回调结果
+                updateStep('step-result', 'active');
+                log('等待解析结果...', 'info');
+                
+                // 设置超时检查
+                let timeoutCount = 0;
+                const checkResult = () => {
+                    timeoutCount++;
+                    
+                    if (onReadyCalled) {
+                        log('✅ 解析完全成功!', 'success');
+                        return;
+                    }
+                    
+                    if (onErrorCalled) {
+                        log('❌ 解析失败', 'error');
+                        return;
+                    }
+                    
+                    if (timeoutCount < 10) { // 最多等待5秒
+                        log(`等待中... (${timeoutCount}/10)`, 'warning');
+                        setTimeout(checkResult, 500);
+                    } else {
+                        log('⚠️ 超时! 尝试强制获取信息...', 'warning');
+                        
+                        try {
+                            const info = mp4boxFile.getInfo && mp4boxFile.getInfo();
+                            if (info && info.tracks && info.tracks.length > 0) {
+                                log('✅ 强制获取信息成功!', 'success');
+                                log(`找到 ${info.tracks.length} 个轨道`, 'success');
+                                updateStep('step-result', 'success');
+                                
+                                info.tracks.forEach((track, index) => {
+                                    log(`轨道 ${index + 1}: ${track.type} (${track.codec})`, 'info');
+                                });
+                            } else {
+                                log('❌ 强制获取信息也失败', 'error');
+                                updateStep('step-result', 'error');
+                            }
+                        } catch (error) {
+                            log(`❌ 强制获取信息出错: ${error.message}`, 'error');
+                            updateStep('step-result', 'error');
+                        }
+                    }
+                };
+                
+                setTimeout(checkResult, 500);
+
+            } catch (error) {
+                log(`❌ 测试过程出错: ${error.message}`, 'error');
+                console.error('详细错误:', error);
+                
+                // 标记当前步骤为错误
+                const activeStep = document.querySelector('.step.active');
+                if (activeStep) {
+                    updateStep(activeStep.id, 'error');
+                }
+            }
+        }
+
+        // 页面加载完成后检查MP4Box
+        document.addEventListener('DOMContentLoaded', function() {
+            log('MP4Box直接测试工具启动', 'info');
+            
+            setTimeout(() => {
+                if (typeof MP4Box !== 'undefined') {
+                    log('✅ MP4Box库加载完成', 'success');
+                    checkMP4BoxVersion();
+                } else {
+                    log('❌ MP4Box库加载失败', 'error');
+                    addStatus('mp4box-status', '❌ MP4Box库加载失败', 'error');
+                }
+            }, 1000);
+        });
+
+        // 全局错误捕获
+        window.addEventListener('error', function(e) {
+            log(`全局错误: ${e.message} (${e.filename}:${e.lineno})`, 'error');
+        });
+    </script>
+</body>
+</html>
