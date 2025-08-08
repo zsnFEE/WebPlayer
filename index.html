@@ -15,6 +15,15 @@
                 🎬 WebAV Player
             </div>
             <div class="player-actions">
+                <div class="decoder-selector-wrapper">
+                    <select id="decoder-selector" class="decoder-selector" title="选择解码器">
+                        <option value="auto" selected>🤖 自动选择</option>
+                        <option value="ffmpeg">🖥️ 软解 (FFmpeg)</option>
+                        <option value="webcodecs">⚡ 硬解 (WebCodecs)</option>
+                    </select>
+                    <span class="decoder-status" id="decoder-status">就绪</span>
+                </div>
+                
                 <div class="file-input-wrapper">
                     <input type="file" id="file-input" class="file-input" accept="video/*,audio/*">
                     <label for="file-input" class="file-input-label">

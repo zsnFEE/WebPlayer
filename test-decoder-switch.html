@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>软解硬解测试 - WebAV Player</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+            background: #1a1a1a; 
+            color: #fff; 
+            padding: 20px; 
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 30px; }
+        .header h1 { font-size: 2rem; margin-bottom: 10px; }
+        .decoder-section { 
+            background: #2a2a2a; 
+            border-radius: 12px; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+        }
+        .decoder-controls { 
+            display: flex; 
+            gap: 15px; 
+            align-items: center; 
+            margin-bottom: 20px; 
+        }
+        .decoder-btn { 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 14px; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+        }
+        .auto-btn { background: #4CAF50; color: white; }
+        .ffmpeg-btn { background: #2196F3; color: white; }
+        .webcodecs-btn { background: #FF9800; color: white; }
+        .decoder-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .decoder-btn.active { box-shadow: 0 0 0 2px #fff; }
+        .status { 
+            background: #333; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 20px; 
+            border-left: 4px solid #4CAF50; 
+        }
+        .file-upload { 
+            border: 2px dashed #555; 
+            border-radius: 12px; 
+            padding: 40px; 
+            text-align: center; 
+            cursor: pointer; 
+            transition: all 0.3s ease; 
+        }
+        .file-upload:hover { border-color: #777; background: #252525; }
+        .file-upload.dragover { border-color: #4CAF50; background: #1e3a1e; }
+        .file-input { display: none; }
+        .canvas-container { 
+            background: #000; 
+            border-radius: 12px; 
+            margin: 20px 0; 
+            overflow: hidden; 
+            position: relative; 
+        }
+        #test-canvas { width: 100%; height: 400px; display: block; }
+        .decoder-info { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            margin-top: 20px; 
+        }
+        .info-card { 
+            background: #333; 
+            padding: 15px; 
+            border-radius: 8px; 
+            text-align: center; 
+        }
+        .info-title { font-size: 12px; color: #888; margin-bottom: 5px; }
+        .info-value { font-size: 16px; font-weight: bold; }
+        .logs { 
+            background: #1e1e1e; 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin-top: 20px; 
+            max-height: 200px; 
+            overflow-y: auto; 
+            font-family: 'Consolas', monospace; 
+            font-size: 12px; 
+        }
+        .log-entry { margin-bottom: 5px; }
+        .log-info { color: #58a6ff; }
+        .log-success { color: #56d364; }
+        .log-warning { color: #e3b341; }
+        .log-error { color: #f85149; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 软解硬解测试</h1>
+            <p>测试FFmpeg软解和WebCodecs硬解的切换功能</p>
+        </div>
+
+        <div class="decoder-section">
+            <h3>解码器选择</h3>
+            <div class="decoder-controls">
+                <button id="auto-btn" class="decoder-btn auto-btn active">🤖 自动选择</button>
+                <button id="ffmpeg-btn" class="decoder-btn ffmpeg-btn">🖥️ 软解 (FFmpeg)</button>
+                <button id="webcodecs-btn" class="decoder-btn webcodecs-btn">⚡ 硬解 (WebCodecs)</button>
+            </div>
+            
+            <div id="status" class="status">
+                <strong>状态:</strong> <span id="status-text">就绪，请上传视频文件进行测试</span>
+            </div>
+        </div>
+
+        <div class="decoder-section">
+            <h3>视频上传</h3>
+            <div class="file-upload" id="file-upload">
+                <div style="font-size: 3rem; margin-bottom: 10px;">📁</div>
+                <div style="font-size: 1.2rem; margin-bottom: 5px;">点击或拖拽视频文件到这里</div>
+                <div style="color: #888;">支持 MP4, WebM, AVI 等格式</div>
+                <input type="file" id="file-input" class="file-input" accept="video/*">
+            </div>
+        </div>
+
+        <div class="decoder-section">
+            <h3>视频播放</h3>
+            <div class="canvas-container">
+                <canvas id="test-canvas"></canvas>
+            </div>
+            
+            <div class="decoder-info">
+                <div class="info-card">
+                    <div class="info-title">当前解码器</div>
+                    <div class="info-value" id="current-decoder">未初始化</div>
+                </div>
+                <div class="info-card">
+                    <div class="info-title">视频编码</div>
+                    <div class="info-value" id="video-codec">-</div>
+                </div>
+                <div class="info-card">
+                    <div class="info-title">音频编码</div>
+                    <div class="info-value" id="audio-codec">-</div>
+                </div>
+                <div class="info-card">
+                    <div class="info-title">分辨率</div>
+                    <div class="info-value" id="resolution">-</div>
+                </div>
+                <div class="info-card">
+                    <div class="info-title">帧率</div>
+                    <div class="info-value" id="framerate">-</div>
+                </div>
+                <div class="info-card">
+                    <div class="info-title">时长</div>
+                    <div class="info-value" id="duration">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="decoder-section">
+            <h3>测试日志</h3>
+            <div id="logs" class="logs">
+                <div class="log-entry log-info">📝 测试页面已加载，等待测试...</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { WebAVPlayer } from './src/player.js';
+
+        class DecoderTest {
+            constructor() {
+                this.player = null;
+                this.currentDecoderType = 'auto';
+                this.initializeElements();
+                this.setupEventListeners();
+                this.setupPlayer();
+            }
+
+            initializeElements() {
+                this.canvas = document.getElementById('test-canvas');
+                this.fileInput = document.getElementById('file-input');
+                this.fileUpload = document.getElementById('file-upload');
+                this.statusText = document.getElementById('status-text');
+                this.logs = document.getElementById('logs');
+                
+                this.autoBtn = document.getElementById('auto-btn');
+                this.ffmpegBtn = document.getElementById('ffmpeg-btn');
+                this.webcodecsBtn = document.getElementById('webcodecs-btn');
+                
+                this.currentDecoderEl = document.getElementById('current-decoder');
+                this.videoCodecEl = document.getElementById('video-codec');
+                this.audioCodecEl = document.getElementById('audio-codec');
+                this.resolutionEl = document.getElementById('resolution');
+                this.framerateEl = document.getElementById('framerate');
+                this.durationEl = document.getElementById('duration');
+            }
+
+            setupEventListeners() {
+                // 解码器按钮
+                this.autoBtn.addEventListener('click', () => this.selectDecoder('auto'));
+                this.ffmpegBtn.addEventListener('click', () => this.selectDecoder('ffmpeg'));
+                this.webcodecsBtn.addEventListener('click', () => this.selectDecoder('webcodecs'));
+                
+                // 文件上传
+                this.fileUpload.addEventListener('click', () => this.fileInput.click());
+                this.fileInput.addEventListener('change', (e) => this.handleFile(e.target.files[0]));
+                
+                // 拖拽上传
+                this.fileUpload.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.fileUpload.classList.add('dragover');
+                });
+                
+                this.fileUpload.addEventListener('dragleave', () => {
+                    this.fileUpload.classList.remove('dragover');
+                });
+                
+                this.fileUpload.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.fileUpload.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        this.handleFile(files[0]);
+                    }
+                });
+            }
+
+            async setupPlayer() {
+                try {
+                    this.log('正在初始化播放器...', 'info');
+                    this.player = new WebAVPlayer(this.canvas);
+                    await this.player.initialize();
+                    
+                    // 设置回调
+                    this.player.onMediaReady = () => {
+                        this.log('媒体已准备就绪', 'success');
+                        this.updateInfo();
+                    };
+                    
+                    this.player.onError = (error) => {
+                        this.log(`播放器错误: ${error.message}`, 'error');
+                    };
+                    
+                    this.log('播放器初始化成功', 'success');
+                    this.updateStatus('播放器已就绪，请选择解码器并上传视频');
+                    this.updateCurrentDecoder();
+                    
+                } catch (error) {
+                    this.log(`播放器初始化失败: ${error.message}`, 'error');
+                    this.updateStatus('播放器初始化失败');
+                }
+            }
+
+            async selectDecoder(type) {
+                this.log(`选择解码器: ${this.getDecoderName(type)}`, 'info');
+                this.currentDecoderType = type;
+                
+                // 更新按钮状态
+                document.querySelectorAll('.decoder-btn').forEach(btn => btn.classList.remove('active'));
+                document.getElementById(`${type === 'webcodecs' ? 'webcodecs' : type}-btn`).classList.add('active');
+                
+                if (this.player) {
+                    try {
+                        this.updateStatus('正在切换解码器...');
+                        this.player.setDecoderPreference(type);
+                        
+                        // 如果有媒体，重新初始化解码器
+                        if (this.player.mediaInfo) {
+                            await this.player.initDecoder(type);
+                            this.log(`解码器切换成功: ${this.getDecoderName(this.player.getCurrentDecoderType())}`, 'success');
+                        }
+                        
+                        this.updateCurrentDecoder();
+                        this.updateStatus('解码器切换完成');
+                        
+                    } catch (error) {
+                        this.log(`解码器切换失败: ${error.message}`, 'error');
+                        this.updateStatus('解码器切换失败');
+                    }
+                }
+            }
+
+            async handleFile(file) {
+                if (!file) return;
+                
+                this.log(`开始加载文件: ${file.name}`, 'info');
+                this.updateStatus('正在加载视频文件...');
+                
+                try {
+                    await this.player.loadFile(file);
+                    this.log('文件加载成功', 'success');
+                    
+                } catch (error) {
+                    this.log(`文件加载失败: ${error.message}`, 'error');
+                    this.updateStatus('文件加载失败');
+                }
+            }
+
+            updateInfo() {
+                if (!this.player || !this.player.mediaInfo) return;
+                
+                const info = this.player.mediaInfo;
+                
+                this.videoCodecEl.textContent = info.videoTracks?.[0]?.codec || '-';
+                this.audioCodecEl.textContent = info.audioTracks?.[0]?.codec || '-';
+                this.resolutionEl.textContent = info.videoTracks?.[0] ? 
+                    `${info.videoTracks[0].track_width}×${info.videoTracks[0].track_height}` : '-';
+                this.framerateEl.textContent = info.videoTracks?.[0] ? 
+                    `${(info.videoTracks[0].timescale / info.videoTracks[0].sample_duration).toFixed(1)} fps` : '-';
+                this.durationEl.textContent = info.duration ? 
+                    `${(info.duration / 1000).toFixed(1)}s` : '-';
+            }
+
+            updateCurrentDecoder() {
+                if (this.player) {
+                    const current = this.player.getCurrentDecoderType();
+                    this.currentDecoderEl.textContent = current ? this.getDecoderName(current) : '未初始化';
+                }
+            }
+
+            getDecoderName(type) {
+                const names = {
+                    'auto': '自动选择',
+                    'ffmpeg': '软解 (FFmpeg)',
+                    'webcodecs': '硬解 (WebCodecs)'
+                };
+                return names[type] || type;
+            }
+
+            updateStatus(message) {
+                this.statusText.textContent = message;
+            }
+
+            log(message, type = 'info') {
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+                this.logs.appendChild(entry);
+                this.logs.scrollTop = this.logs.scrollHeight;
+                console.log(`[DecoderTest] ${message}`);
+            }
+        }
+
+        // 启动测试
+        new DecoderTest();
+    </script>
+</body>
+</html>

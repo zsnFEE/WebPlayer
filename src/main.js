@@ -48,6 +48,8 @@ class App {
     this.fileInput = document.getElementById('file-input');
     this.urlInput = document.getElementById('url-input');
     this.loadUrlBtn = document.getElementById('load-url-btn');
+    this.decoderSelector = document.getElementById('decoder-selector');
+    this.decoderStatus = document.getElementById('decoder-status');
     this.playBtn = document.getElementById('play-btn');
     this.playIcon = document.getElementById('play-icon');
     this.progressContainer = document.getElementById('progress-container');
@@ -102,6 +104,13 @@ class App {
         if (this.loadUrlBtn) {
           this.loadUrlBtn.disabled = !e.target.value.trim();
         }
+      });
+    }
+
+    // 解码器选择器
+    if (this.decoderSelector) {
+      this.decoderSelector.addEventListener('change', (e) => {
+        this.handleDecoderChange(e.target.value);
       });
     }
 
@@ -203,6 +212,13 @@ class App {
         console.log('🎉 [App] onMediaReady callback triggered!');
         this.hideLoading();
         this.enableControls();
+        
+        // 更新解码器状态显示
+        const currentDecoder = this.player.getCurrentDecoderType();
+        if (currentDecoder) {
+          this.updateDecoderStatus(`使用 ${this.getDecoderDisplayName(currentDecoder)}`);
+        }
+        
         console.log('✅ [App] Media ready, controls enabled');
       };
       
@@ -742,6 +758,77 @@ class App {
       this.playerHeader.classList.add('hidden');
       this.playerContainer.style.cursor = 'none';
     }
+  }
+
+  /**
+   * 处理解码器选择变化
+   */
+  async handleDecoderChange(decoderType) {
+    console.log('🔧 [App] Decoder selection changed to:', decoderType);
+    
+    if (!this.player) {
+      console.warn('Player not initialized yet, storing preference');
+      return;
+    }
+    
+    try {
+      // 更新状态显示
+      this.updateDecoderStatus('切换中...');
+      
+      // 设置新的解码器偏好
+      this.player.setDecoderPreference(decoderType);
+      
+      // 如果当前有媒体正在播放，需要重新初始化解码器
+      if (this.player.mediaInfo) {
+        console.log('🔄 [App] Reinitializing decoder with new preference...');
+        
+        // 暂停播放
+        const wasPlaying = this.player.isPlaying;
+        if (wasPlaying) {
+          await this.player.pause();
+        }
+        
+        // 重新初始化解码器
+        await this.player.initDecoder(decoderType);
+        
+        // 如果之前在播放，恢复播放
+        if (wasPlaying) {
+          await this.player.play();
+        }
+        
+        this.updateDecoderStatus(`使用 ${this.getDecoderDisplayName(this.player.getCurrentDecoderType())}`);
+      } else {
+        this.updateDecoderStatus('就绪');
+      }
+      
+      console.log('✅ [App] Decoder switched successfully');
+    } catch (error) {
+      console.error('❌ [App] Failed to switch decoder:', error);
+      this.updateDecoderStatus('切换失败');
+      this.handleError(`解码器切换失败: ${error.message}`);
+    }
+  }
+  
+  /**
+   * 更新解码器状态显示
+   */
+  updateDecoderStatus(status) {
+    if (this.decoderStatus) {
+      this.decoderStatus.textContent = status;
+      console.log('📊 [App] Decoder status updated:', status);
+    }
+  }
+  
+  /**
+   * 获取解码器显示名称
+   */
+  getDecoderDisplayName(decoderType) {
+    const names = {
+      'ffmpeg': '软解 (FFmpeg)',
+      'webcodecs': '硬解 (WebCodecs)',
+      'auto': '自动选择'
+    };
+    return names[decoderType] || decoderType;
   }
 
   /**
