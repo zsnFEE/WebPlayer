@@ -4,532 +4,101 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebAV Player</title>
-    <meta name="description" content="简单可靠的视频播放器">
+    <meta name="description" content="现代化音视频播放器">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #fff;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-
-        .upload-area {
-            background: rgba(255,255,255,0.1);
-            border: 2px dashed rgba(255,255,255,0.3);
-            border-radius: 20px;
-            padding: 60px 40px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-bottom: 30px;
-            backdrop-filter: blur(10px);
-        }
-
-        .upload-area:hover {
-            background: rgba(255,255,255,0.15);
-            border-color: rgba(255,255,255,0.5);
-            transform: translateY(-5px);
-        }
-
-        .upload-area.dragover {
-            background: rgba(255,255,255,0.2);
-            border-color: #4CAF50;
-            border-style: solid;
-        }
-
-        .upload-icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            display: block;
-        }
-
-        .upload-text {
-            font-size: 1.5rem;
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .upload-hint {
-            font-size: 1rem;
-            opacity: 0.8;
-        }
-
-        .file-input {
-            display: none;
-        }
-
-        .url-section {
-            background: rgba(255,255,255,0.1);
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
-            backdrop-filter: blur(10px);
-        }
-
-        .url-section h3 {
-            margin-bottom: 20px;
-            font-size: 1.3rem;
-        }
-
-        .url-input-group {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .url-input {
-            flex: 1;
-            padding: 15px 20px;
-            border: none;
-            border-radius: 10px;
-            font-size: 1rem;
-            background: rgba(255,255,255,0.9);
-            color: #333;
-        }
-
-        .url-input:focus {
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(255,255,255,0.3);
-        }
-
-        .load-btn {
-            padding: 15px 25px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .load-btn:hover {
-            background: #45a049;
-            transform: translateY(-2px);
-        }
-
-        .video-player {
-            background: rgba(0,0,0,0.8);
-            border-radius: 20px;
-            padding: 30px;
-            margin-bottom: 30px;
-            backdrop-filter: blur(10px);
-            display: none;
-        }
-
-        .video-player.active {
-            display: block;
-        }
-
-        video {
-            width: 100%;
-            max-width: 100%;
-            height: auto;
-            border-radius: 15px;
-            background: #000;
-        }
-
-        .video-info {
-            background: rgba(255,255,255,0.1);
-            border-radius: 15px;
-            padding: 25px;
-            margin-top: 20px;
-            backdrop-filter: blur(10px);
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-        }
-
-        .info-item {
-            background: rgba(255,255,255,0.1);
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-        }
-
-        .info-label {
-            font-size: 0.9rem;
-            opacity: 0.8;
-            margin-bottom: 5px;
-        }
-
-        .info-value {
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-
-        .status {
-            background: rgba(255,255,255,0.1);
-            border-radius: 15px;
-            padding: 20px;
-            text-align: center;
-            margin-bottom: 20px;
-            backdrop-filter: blur(10px);
-        }
-
-        .status.success {
-            background: rgba(76, 175, 80, 0.2);
-        }
-
-        .status.error {
-            background: rgba(244, 67, 54, 0.2);
-        }
-
-        .status.warning {
-            background: rgba(255, 152, 0, 0.2);
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 0 10px;
-            }
-            
-            .header h1 {
-                font-size: 2rem;
-            }
-            
-            .upload-area {
-                padding: 40px 20px;
-            }
-            
-            .url-input-group {
-                flex-direction: column;
-            }
-            
-            .url-input, .load-btn {
-                width: 100%;
-            }
-        }
-    </style>
 </head>
 <body>
-    <div class="container">
+    <div class="player-container" id="player-container">
         <!-- Header -->
-        <div class="header">
-            <h1>🎬 WebAV Player</h1>
-            <p>简单可靠的HTML5视频播放器</p>
-        </div>
-
-        <!-- Status Message -->
-        <div id="status" class="status" style="display: none;">
-            <div id="status-message">准备就绪</div>
-        </div>
-
-        <!-- Upload Area -->
-        <div class="upload-area" id="uploadArea">
-            <span class="upload-icon">📁</span>
-            <div class="upload-text">点击或拖拽视频文件到这里</div>
-            <div class="upload-hint">支持 MP4, WebM, AVI, MOV 等格式</div>
-            <input type="file" id="fileInput" class="file-input" accept="video/*">
-        </div>
-
-        <!-- URL Input Section -->
-        <div class="url-section">
-            <h3>🌐 或者输入网络视频地址</h3>
-            <div class="url-input-group">
-                <input type="url" id="urlInput" class="url-input" placeholder="https://example.com/video.mp4">
-                <button id="loadUrlBtn" class="load-btn">加载视频</button>
+        <div class="player-header" id="player-header">
+            <div class="player-title">
+                🎬 WebAV Player
+            </div>
+            <div class="player-actions">
+                <div class="file-input-wrapper">
+                    <input type="file" id="file-input" class="file-input" accept="video/*,audio/*">
+                    <label for="file-input" class="file-input-label">
+                        <span class="file-input-icon">📁</span>
+                        选择本地文件
+                    </label>
+                </div>
+                
+                <div class="url-input-wrapper">
+                    <input type="url" 
+                           id="url-input" 
+                           class="url-input" 
+                           placeholder="输入视频URL地址...">
+                    <button id="load-url-btn" class="load-url-btn">
+                        <span class="load-url-icon">🌐</span>
+                        加载网络视频
+                    </button>
+                </div>
             </div>
         </div>
 
-        <!-- Video Player -->
-        <div class="video-player" id="videoPlayer">
-            <video id="video" controls>
-                您的浏览器不支持视频播放
-            </video>
+        <!-- Video Container -->
+        <div class="video-container" id="video-container">
+            <canvas id="video-canvas"></canvas>
             
-            <!-- Video Info -->
-            <div class="video-info" id="videoInfo" style="display: none;">
-                <h3>📊 视频信息</h3>
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">文件名</div>
-                        <div class="info-value" id="fileName">-</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">文件大小</div>
-                        <div class="info-value" id="fileSize">-</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">视频时长</div>
-                        <div class="info-value" id="videoDuration">-</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">分辨率</div>
-                        <div class="info-value" id="videoResolution">-</div>
-                    </div>
+            <!-- Loading State -->
+            <div id="loading" class="loading hidden">
+                <div class="loading-spinner"></div>
+                <div>加载中...</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls" id="controls">
+            <!-- Primary Controls -->
+            <button id="play-btn" class="control-btn primary" title="播放/暂停">
+                <span id="play-icon">▶️</span>
+            </button>
+            
+            <!-- Progress -->
+            <div class="progress-container" id="progress-container">
+                <div class="progress-track">
+                    <div class="progress-bar" id="progress-bar"></div>
                 </div>
+            </div>
+            
+            <!-- Time Display -->
+            <div class="time-display" id="time-display">
+                00:00 / 00:00
+            </div>
+            
+            <!-- Volume -->
+            <div class="volume-container">
+                <span class="volume-icon" id="volume-icon">🔊</span>
+                <input type="range" 
+                       id="volume-slider" 
+                       class="volume-slider" 
+                       min="0" 
+                       max="100" 
+                       value="100"
+                       title="音量">
+            </div>
+            
+            <!-- Speed -->
+            <select id="speed-selector" class="speed-selector" title="播放速度">
+                <option value="0.25">0.25x</option>
+                <option value="0.5">0.5x</option>
+                <option value="0.75">0.75x</option>
+                <option value="1" selected>1x</option>
+                <option value="1.25">1.25x</option>
+                <option value="1.5">1.5x</option>
+                <option value="1.75">1.75x</option>
+                <option value="2">2x</option>
+            </select>
+            
+            <!-- Secondary Controls -->
+            <div class="controls-secondary">
+                <button id="fullscreen-btn" class="control-btn small" title="全屏">
+                    <span>⛶</span>
+                </button>
             </div>
         </div>
     </div>
 
-    <script>
-        // DOM元素
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const urlInput = document.getElementById('urlInput');
-        const loadUrlBtn = document.getElementById('loadUrlBtn');
-        const videoPlayer = document.getElementById('videoPlayer');
-        const video = document.getElementById('video');
-        const videoInfo = document.getElementById('videoInfo');
-        const status = document.getElementById('status');
-
-        let currentFile = null;
-
-        // 显示状态消息
-        function showStatus(message, type = 'info') {
-            const statusEl = document.getElementById('status');
-            const messageEl = document.getElementById('status-message');
-            
-            messageEl.textContent = message;
-            statusEl.className = `status ${type}`;
-            statusEl.style.display = 'block';
-            
-            console.log(`[${type.toUpperCase()}] ${message}`);
-        }
-
-        // 更新视频信息
-        function updateVideoInfo() {
-            if (currentFile) {
-                document.getElementById('fileName').textContent = currentFile.name;
-                document.getElementById('fileSize').textContent = `${(currentFile.size / 1024 / 1024).toFixed(2)} MB`;
-            } else {
-                document.getElementById('fileName').textContent = '网络视频';
-                document.getElementById('fileSize').textContent = '-';
-            }
-
-            if (video.duration && !isNaN(video.duration)) {
-                const duration = video.duration;
-                const minutes = Math.floor(duration / 60);
-                const seconds = Math.floor(duration % 60);
-                document.getElementById('videoDuration').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-            } else {
-                document.getElementById('videoDuration').textContent = '-';
-            }
-
-            if (video.videoWidth && video.videoHeight) {
-                document.getElementById('videoResolution').textContent = `${video.videoWidth}×${video.videoHeight}`;
-            } else {
-                document.getElementById('videoResolution').textContent = '-';
-            }
-        }
-
-        // 加载视频文件
-        function loadVideo(source, isFile = false) {
-            try {
-                video.src = source;
-                videoPlayer.classList.add('active');
-                
-                if (isFile) {
-                    showStatus('本地视频文件加载成功', 'success');
-                } else {
-                    showStatus('网络视频加载成功', 'success');
-                }
-                
-                // 滚动到视频位置
-                videoPlayer.scrollIntoView({ behavior: 'smooth' });
-                
-            } catch (error) {
-                showStatus(`视频加载失败: ${error.message}`, 'error');
-                console.error('Video load error:', error);
-            }
-        }
-
-        // 文件上传处理
-        uploadArea.addEventListener('click', () => {
-            fileInput.click();
-        });
-
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
-            }
-        });
-
-        function handleFile(file) {
-            console.log('File selected:', file.name, file.type, file.size);
-            
-            // 检查文件类型
-            if (!file.type.startsWith('video/')) {
-                showStatus('请选择视频文件', 'error');
-                return;
-            }
-
-            currentFile = file;
-            showStatus('正在加载视频文件...', 'info');
-
-            try {
-                const url = URL.createObjectURL(file);
-                loadVideo(url, true);
-            } catch (error) {
-                showStatus(`文件加载失败: ${error.message}`, 'error');
-                console.error('File load error:', error);
-            }
-        }
-
-        // 网络视频加载
-        loadUrlBtn.addEventListener('click', () => {
-            const url = urlInput.value.trim();
-            
-            if (!url) {
-                showStatus('请输入视频URL', 'warning');
-                return;
-            }
-
-            if (!isValidUrl(url)) {
-                showStatus('请输入有效的URL地址', 'error');
-                return;
-            }
-
-            currentFile = null;
-            showStatus('正在加载网络视频...', 'info');
-            loadVideo(url, false);
-        });
-
-        // URL回车键支持
-        urlInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                loadUrlBtn.click();
-            }
-        });
-
-        // URL验证
-        function isValidUrl(string) {
-            try {
-                new URL(string);
-                return true;
-            } catch (_) {
-                return false;
-            }
-        }
-
-        // 视频事件监听
-        video.addEventListener('loadedmetadata', () => {
-            console.log('Video metadata loaded');
-            updateVideoInfo();
-            videoInfo.style.display = 'block';
-            showStatus('视频准备就绪，可以播放', 'success');
-        });
-
-        video.addEventListener('canplay', () => {
-            console.log('Video can start playing');
-        });
-
-        video.addEventListener('play', () => {
-            console.log('Video started playing');
-        });
-
-        video.addEventListener('pause', () => {
-            console.log('Video paused');
-        });
-
-        video.addEventListener('ended', () => {
-            console.log('Video ended');
-            showStatus('视频播放完成', 'info');
-        });
-
-        video.addEventListener('error', (e) => {
-            console.error('Video error:', e);
-            const error = video.error;
-            let errorMessage = '视频播放错误';
-            
-            if (error) {
-                switch (error.code) {
-                    case 1:
-                        errorMessage = '视频加载被中止';
-                        break;
-                    case 2:
-                        errorMessage = '网络错误，无法加载视频';
-                        break;
-                    case 3:
-                        errorMessage = '视频格式不支持或文件损坏';
-                        break;
-                    case 4:
-                        errorMessage = '视频格式不支持';
-                        break;
-                }
-            }
-            
-            showStatus(errorMessage, 'error');
-        });
-
-        video.addEventListener('waiting', () => {
-            showStatus('视频缓冲中...', 'info');
-        });
-
-        video.addEventListener('playing', () => {
-            status.style.display = 'none';
-        });
-
-        // 页面加载完成
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('WebAV Player initialized');
-            showStatus('播放器就绪，请选择视频文件', 'info');
-        });
-
-        // 全局错误处理
-        window.addEventListener('error', (e) => {
-            console.error('Global error:', e.error);
-            showStatus(`页面错误: ${e.message}`, 'error');
-        });
-
-        window.addEventListener('unhandledrejection', (e) => {
-            console.error('Unhandled promise rejection:', e.reason);
-            showStatus(`系统错误: ${e.reason}`, 'error');
-        });
-    </script>
+    <!-- Webpack will inject scripts here -->
 </body>
 </html>
