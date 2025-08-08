@@ -87,7 +87,19 @@ export class WebAVPlayer {
       await this.audioPlayer.init();
       
       // 初始化解码器 (优先WebCodecs)
-      await this.initDecoder();
+      console.log('🔧 [Player] Starting decoder initialization...');
+      try {
+        await this.initDecoder();
+        console.log('📊 [Player] Decoder initialization result:', {
+          hasDecoder: !!this.decoder,
+          decoderType: this.decoder?.constructor?.name,
+          decoderMethods: this.decoder ? Object.getOwnPropertyNames(Object.getPrototypeOf(this.decoder)) : []
+        });
+      } catch (decoderError) {
+        console.error('❌ [Player] Decoder initialization failed during initialize():', decoderError);
+        // 继续初始化其他组件，但标记解码器不可用
+        this.decoder = null;
+      }
       
       // 设置解析器回调
       this.setupParserCallbacks();
@@ -164,37 +176,50 @@ export class WebAVPlayer {
    * 初始化解码器
    */
   async initDecoder() {
+    console.log('🎯 [Player] initDecoder started');
     let webcodecsError = null;
     let ffmpegError = null;
     
     try {
       // 尝试使用WebCodecs
+      console.log('📱 [Player] Attempting WebCodecs decoder...');
       this.decoder = new WebCodecsDecoder();
+      console.log('✅ [Player] WebCodecs decoder instance created');
       
       // WebCodecs解码器不需要async初始化，但需要检查支持
+      console.log('🔍 [Player] Checking WebCodecs support:', {
+        isVideoSupported: this.decoder.isVideoSupported,
+        isAudioSupported: this.decoder.isAudioSupported
+      });
+      
       if (!this.decoder.isVideoSupported && !this.decoder.isAudioSupported) {
         throw new Error('WebCodecs not supported for video or audio');
       }
       
-      console.log('Using WebCodecs decoder');
+      console.log('✅ [Player] Using WebCodecs decoder');
     } catch (error) {
       webcodecsError = error;
-      console.warn('WebCodecs failed, falling back to FFmpeg:', error);
+      console.warn('⚠️ [Player] WebCodecs failed, falling back to FFmpeg:', error);
       
       try {
         // 后备到FFmpeg.wasm
+        console.log('🔄 [Player] Attempting FFmpeg decoder...');
         this.decoder = new FFmpegDecoder();
+        console.log('⚙️ [Player] FFmpeg decoder instance created, initializing...');
         await this.decoder.init();
-        console.log('Using FFmpeg decoder');
-      } catch (ffmpegError) {
-        console.error('Both WebCodecs and FFmpeg failed:', ffmpegError);
-        
-        // 如果两个都失败了，抛出更详细的错误
-        const detailedError = new Error(
-          `No supported decoder available. WebCodecs: ${webcodecsError?.message || 'not supported'}. FFmpeg: ${ffmpegError?.message || 'failed to load'}`
-        );
-        
-        throw detailedError;
+        console.log('✅ [Player] Using FFmpeg decoder');
+              } catch (ffmpegError) {
+          console.error('❌ [Player] Both WebCodecs and FFmpeg failed:', ffmpegError);
+          
+          // 确保decoder被重置
+          this.decoder = null;
+          
+          // 如果两个都失败了，抛出更详细的错误
+          const detailedError = new Error(
+            `No supported decoder available. WebCodecs: ${webcodecsError?.message || 'not supported'}. FFmpeg: ${ffmpegError?.message || 'failed to load'}`
+          );
+          
+          throw detailedError;
       }
     }
     
@@ -432,7 +457,18 @@ export class WebAVPlayer {
     
     if (!this.decoder) {
       console.error('❌ [Player] No decoder available for initialization');
-      return;
+      console.log('🔄 [Player] Attempting to re-initialize decoder...');
+      try {
+        await this.initDecoder();
+        if (!this.decoder) {
+          console.error('❌ [Player] Decoder re-initialization failed');
+          return;
+        }
+        console.log('✅ [Player] Decoder re-initialization successful');
+      } catch (error) {
+        console.error('❌ [Player] Decoder re-initialization error:', error);
+        return;
+      }
     }
     
     try {
