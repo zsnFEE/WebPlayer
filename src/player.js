@@ -209,6 +209,24 @@ export class WebAVPlayer {
   }
 
   /**
+   * 确保解析器回调正确设置
+   */
+  ensureParserCallbacks() {
+    console.log('🔍 [Player] Checking parser callback status...');
+    console.log('Current callbacks:', {
+      onReady: typeof this.parser.onReady,
+      onSamples: typeof this.parser.onSamples,
+      onError: typeof this.parser.onError
+    });
+    
+    // 如果回调丢失，重新设置
+    if (typeof this.parser.onReady !== 'function') {
+      console.log('⚠️ [Player] onReady callback missing, re-setting...');
+      this.setupParserCallbacks();
+    }
+  }
+
+  /**
    * 设置解析器回调 - 增强版
    */
   setupParserCallbacks() {
@@ -536,6 +554,10 @@ export class WebAVPlayer {
       const arrayBuffer = await file.arrayBuffer();
       
       console.log(`📊 [Player] File read complete: ${arrayBuffer.byteLength} bytes`);
+      
+      // 确保回调在发送数据前设置正确
+      console.log('🔗 [Player] Ensuring parser callbacks before data send...');
+      this.ensureParserCallbacks();
       
       console.log('📦 [Player] Sending to parser...');
       await this.parser.appendBuffer(arrayBuffer);

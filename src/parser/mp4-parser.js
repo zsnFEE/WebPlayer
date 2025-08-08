@@ -106,6 +106,21 @@ export class MP4Parser {
         this.setupMP4BoxCallbacks();
         return;
       }
+      
+      // 保存外部回调，防止初始化过程中丢失
+      const savedCallbacks = {
+        onReady: this.onReady,
+        onSamples: this.onSamples,
+        onError: this.onError,
+        onProgress: this.onProgress,
+        onFastStartReady: this.onFastStartReady
+      };
+      
+      console.log('💾 [MP4Parser] Saved external callbacks before init:', {
+        onReady: typeof savedCallbacks.onReady,
+        onSamples: typeof savedCallbacks.onSamples,
+        onError: typeof savedCallbacks.onError
+      });
 
       console.log('🏗️ [MP4Parser] Creating new MP4Box instance...');
 
@@ -131,6 +146,19 @@ export class MP4Parser {
 
       // 设置流式加载器回调
       this.setupStreamLoader();
+      
+      // 恢复外部回调
+      if (savedCallbacks.onReady) this.onReady = savedCallbacks.onReady;
+      if (savedCallbacks.onSamples) this.onSamples = savedCallbacks.onSamples;
+      if (savedCallbacks.onError) this.onError = savedCallbacks.onError;
+      if (savedCallbacks.onProgress) this.onProgress = savedCallbacks.onProgress;
+      if (savedCallbacks.onFastStartReady) this.onFastStartReady = savedCallbacks.onFastStartReady;
+      
+      console.log('🔄 [MP4Parser] Restored external callbacks after init:', {
+        onReady: typeof this.onReady,
+        onSamples: typeof this.onSamples,
+        onError: typeof this.onError
+      });
 
       console.log('✅ [MP4Parser] MP4 parser initialized with streaming support');
       
