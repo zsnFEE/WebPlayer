@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 onReady调试</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #fff;
+            padding: 20px;
+            margin: 0;
+        }
+        .log { 
+            background: #111; 
+            padding: 15px; 
+            border-radius: 5px; 
+            max-height: 600px; 
+            overflow-y: auto; 
+            white-space: pre-wrap;
+            font-size: 11px;
+            border: 1px solid #333;
+            margin: 10px 0;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #1976D2; }
+        button:disabled { background: #666; cursor: not-allowed; }
+        input[type="file"] {
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border: 1px solid #666;
+            color: white;
+            border-radius: 4px;
+        }
+        .test-section {
+            background: #222;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        .info { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <h1>🔍 onReady回调详细调试</h1>
+    <p>专门调试onReady回调为什么没有被触发</p>
+
+    <div class="test-section">
+        <h3>📁 文件测试</h3>
+        <input type="file" id="testFile" accept="video/*">
+        <button onclick="testOnReadyCallback()" id="testBtn" disabled>测试onReady回调</button>
+        <button onclick="clearLog()">清除日志</button>
+    </div>
+
+    <div class="test-section">
+        <h3>📋 详细调试日志</h3>
+        <div id="log" class="log">等待文件选择...</div>
+    </div>
+
+    <script>
+        let testFileData = null;
+
+        function log(message, type = 'info') {
+            const logEl = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: '#2196F3',
+                success: '#4CAF50', 
+                error: '#f44336',
+                warning: '#ff9800'
+            };
+            
+            logEl.innerHTML += `<span style="color: ${colors[type]}">[${timestamp}] ${message}</span>\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        window.clearLog = function() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // 文件选择处理
+        document.getElementById('testFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                log(`文件选择: ${file.name} (${(file.size/1024/1024).toFixed(2)}MB)`, 'info');
+                document.getElementById('testBtn').disabled = false;
+                testFileData = file;
+            } else {
+                document.getElementById('testBtn').disabled = true;
+                testFileData = null;
+            }
+        });
+
+        // 测试onReady回调
+        window.testOnReadyCallback = async function() {
+            if (!testFileData) {
+                log('请先选择文件', 'error');
+                return;
+            }
+
+            log('=== 开始onReady回调调试 ===', 'info');
+
+            try {
+                // 直接导入MP4Parser
+                const { MP4Parser } = await import('./src/parser/mp4-parser.js');
+                log('✅ MP4Parser导入成功', 'success');
+
+                // 创建MP4Parser实例
+                const parser = new MP4Parser();
+                log('✅ MP4Parser实例创建成功', 'success');
+
+                // 检查onReady属性是否存在
+                log(`🔍 onReady属性检查: ${typeof parser.onReady}`, 'info');
+                log(`🔍 onSamples属性检查: ${typeof parser.onSamples}`, 'info');
+                log(`🔍 onError属性检查: ${typeof parser.onError}`, 'info');
+
+                // 设置回调 - 添加详细日志
+                let onReadyTriggered = false;
+                parser.onReady = function(info) {
+                    onReadyTriggered = true;
+                    log('🎉🎉🎉 parser.onReady 被触发！！！', 'success');
+                    log(`接收到的info: ${JSON.stringify(info, null, 2)}`, 'info');
+                };
+
+                parser.onError = function(error) {
+                    log(`❌ parser.onError 被触发: ${error}`, 'error');
+                };
+
+                // 验证回调设置成功
+                log(`🔍 onReady设置后检查: ${typeof parser.onReady}`, 'info');
+                log(`🔍 onReady内容预览: ${parser.onReady.toString().substring(0, 100)}`, 'info');
+
+                // 初始化解析器
+                log('🔧 初始化MP4Parser...', 'info');
+                parser.init();
+                log('✅ MP4Parser初始化完成', 'success');
+
+                // 再次检查回调状态
+                log(`🔍 初始化后onReady检查: ${typeof parser.onReady}`, 'info');
+
+                // 读取文件数据
+                log('📖 读取文件数据...', 'info');
+                const arrayBuffer = await testFileData.arrayBuffer();
+                log(`✅ 文件读取完成: ${arrayBuffer.byteLength} 字节`, 'success');
+
+                // 发送数据到解析器
+                log('📦 发送数据到MP4Parser...', 'info');
+                await parser.appendBuffer(arrayBuffer);
+                log('✅ 数据发送完成', 'success');
+
+                // 等待回调触发
+                log('⏳ 等待onReady回调触发...', 'warning');
+                
+                let checkCount = 0;
+                const checkCallback = () => {
+                    checkCount++;
+                    log(`🔍 回调检查 ${checkCount}/20: onReady=${typeof parser.onReady}, triggered=${onReadyTriggered}`, 'info');
+                    
+                    if (onReadyTriggered) {
+                        log('🎉 SUCCESS! onReady回调已触发！', 'success');
+                        return;
+                    }
+                    
+                    if (checkCount < 20) {
+                        setTimeout(checkCallback, 500);
+                    } else {
+                        log('❌ TIMEOUT! onReady回调在10秒内未触发', 'error');
+                        log(`最终状态: onReady=${typeof parser.onReady}, triggered=${onReadyTriggered}`, 'error');
+                        
+                        // 尝试强制检查解析器状态
+                        log('🔧 尝试获取解析器状态...', 'warning');
+                        log(`isInitialized: ${parser.isInitialized}`, 'info');
+                        log(`hasMP4BoxFile: ${!!parser.mp4boxfile}`, 'info');
+                        log(`info: ${parser.info ? 'exists' : 'null'}`, 'info');
+                    }
+                };
+                
+                setTimeout(checkCallback, 500);
+
+            } catch (error) {
+                log(`❌ 测试失败: ${error.message}`, 'error');
+                console.error('详细错误:', error);
+            }
+        };
+
+        // 全局错误捕获
+        window.addEventListener('error', function(e) {
+            log(`全局错误: ${e.message} (${e.filename}:${e.lineno})`, 'error');
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+            log(`未处理的Promise拒绝: ${e.reason}`, 'error');
+        });
+
+        log('onReady回调调试工具已准备就绪', 'info');
+    </script>
+</body>
+</html>
