@@ -180,46 +180,49 @@ export class WebAVPlayer {
     let webcodecsError = null;
     let ffmpegError = null;
     
+    // 优先使用FFmpeg，因为它对各种MP4格式兼容性更好
+    console.log('🎯 [Player] Using FFmpeg decoder first (better MP4 compatibility)...');
+    
     try {
-      // 尝试使用WebCodecs
-      console.log('📱 [Player] Attempting WebCodecs decoder...');
-      this.decoder = new WebCodecsDecoder();
-      console.log('✅ [Player] WebCodecs decoder instance created');
-      
-      // WebCodecs解码器不需要async初始化，但需要检查支持
-      console.log('🔍 [Player] Checking WebCodecs support:', {
-        isVideoSupported: this.decoder.isVideoSupported,
-        isAudioSupported: this.decoder.isAudioSupported
-      });
-      
-      if (!this.decoder.isVideoSupported && !this.decoder.isAudioSupported) {
-        throw new Error('WebCodecs not supported for video or audio');
-      }
-      
-      console.log('✅ [Player] Using WebCodecs decoder');
+      // 首先尝试FFmpeg.wasm - 兼容性更好
+      console.log('🔄 [Player] Attempting FFmpeg decoder...');
+      this.decoder = new FFmpegDecoder();
+      console.log('⚙️ [Player] FFmpeg decoder instance created, initializing...');
+      await this.decoder.init();
+      console.log('✅ [Player] Using FFmpeg decoder');
     } catch (error) {
-      webcodecsError = error;
-      console.warn('⚠️ [Player] WebCodecs failed, falling back to FFmpeg:', error);
+      ffmpegError = error;
+      console.warn('⚠️ [Player] FFmpeg failed, falling back to WebCodecs:', error);
       
       try {
-        // 后备到FFmpeg.wasm
-        console.log('🔄 [Player] Attempting FFmpeg decoder...');
-        this.decoder = new FFmpegDecoder();
-        console.log('⚙️ [Player] FFmpeg decoder instance created, initializing...');
-        await this.decoder.init();
-        console.log('✅ [Player] Using FFmpeg decoder');
-              } catch (ffmpegError) {
-          console.error('❌ [Player] Both WebCodecs and FFmpeg failed:', ffmpegError);
-          
-          // 确保decoder被重置
-          this.decoder = null;
-          
-          // 如果两个都失败了，抛出更详细的错误
-          const detailedError = new Error(
-            `No supported decoder available. WebCodecs: ${webcodecsError?.message || 'not supported'}. FFmpeg: ${ffmpegError?.message || 'failed to load'}`
-          );
-          
-          throw detailedError;
+        // 后备到WebCodecs (可能遇到keyframe问题)
+        console.log('🔄 [Player] Attempting WebCodecs decoder...');
+        this.decoder = new WebCodecsDecoder();
+        console.log('✅ [Player] WebCodecs decoder instance created');
+        
+        // WebCodecs解码器不需要async初始化，但需要检查支持
+        console.log('🔍 [Player] Checking WebCodecs support:', {
+          isVideoSupported: this.decoder.isVideoSupported,
+          isAudioSupported: this.decoder.isAudioSupported
+        });
+        
+        if (!this.decoder.isVideoSupported && !this.decoder.isAudioSupported) {
+          throw new Error('WebCodecs not supported for video or audio');
+        }
+        
+        console.log('✅ [Player] Using WebCodecs decoder');
+      } catch (webcodecsError) {
+        console.error('❌ [Player] Both FFmpeg and WebCodecs failed:', webcodecsError);
+        
+        // 确保decoder被重置
+        this.decoder = null;
+        
+        // 如果两个都失败了，抛出更详细的错误
+        const detailedError = new Error(
+          `No supported decoder available. FFmpeg: ${ffmpegError?.message || 'failed to load'}. WebCodecs: ${webcodecsError?.message || 'not supported'}`
+        );
+        
+        throw detailedError;
       }
     }
     
@@ -231,6 +234,58 @@ export class WebAVPlayer {
     this.decoder.onAudioFrame = (frame) => {
       this.handleAudioFrame(frame);
     };
+    
+    // 设置解码器错误回调 - 用于自动切换到FFmpeg
+    if (this.decoder.onDecoderError !== undefined) {
+      this.decoder.onDecoderError = async (errorType, message) => {
+        console.warn(`🚨 [Player] Decoder error detected: ${errorType} - ${message}`);
+        
+        if (errorType === 'KEYFRAME_ERROR' && this.decoder.constructor.name === 'WebCodecsDecoder') {
+          console.log('🔄 [Player] Auto-switching from WebCodecs to FFmpeg due to keyframe errors...');
+          await this.switchToFFmpegDecoder();
+        }
+      };
+    }
+  }
+
+  /**
+   * 切换到FFmpeg解码器 - 用于WebCodecs失败时的自动降级
+   */
+  async switchToFFmpegDecoder() {
+    console.log('🔧 [Player] Switching to FFmpeg decoder...');
+    
+    try {
+      // 停止当前解码器
+      if (this.decoder && typeof this.decoder.destroy === 'function') {
+        await this.decoder.destroy();
+      }
+      
+      // 创建FFmpeg解码器
+      const { FFmpegDecoder } = await import('./decoder/ffmpeg-decoder.js');
+      this.decoder = new FFmpegDecoder();
+      await this.decoder.init();
+      
+      // 重新设置解码器回调
+      this.decoder.onVideoFrame = (frame) => {
+        this.handleVideoFrame(frame);
+      };
+      
+      this.decoder.onAudioFrame = (frame) => {
+        this.handleAudioFrame(frame);
+      };
+      
+      console.log('✅ [Player] Successfully switched to FFmpeg decoder');
+      
+      // 如果有媒体信息，重新初始化解码器配置
+      if (this.mediaInfo) {
+        await this.initDecodersWithMediaInfo();
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('❌ [Player] Failed to switch to FFmpeg decoder:', error);
+      return false;
+    }
   }
 
   /**
