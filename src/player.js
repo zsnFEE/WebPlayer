@@ -215,7 +215,10 @@ export class WebAVPlayer {
     // 首先初始化解析器
     this.parser.init();
     
+    console.log('🔗 [Player] Setting up parser callbacks...');
+    
     this.parser.onReady = (info) => {
+      console.log('📢 [Player] Parser onReady callback triggered!', info);
       this.handleMediaReady(info);
     };
     
@@ -260,6 +263,7 @@ export class WebAVPlayer {
    * 处理媒体信息就绪 - 增强版
    */
   async handleMediaReady(info) {
+    console.log('🎯 [Player] ===== handleMediaReady TRIGGERED! =====');
     console.log('🎯 [Player] handleMediaReady called with info:', info);
     
     if (!info) {

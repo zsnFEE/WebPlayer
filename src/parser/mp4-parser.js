@@ -63,14 +63,51 @@ export class MP4Parser {
   }
 
   /**
+   * 设置MP4Box回调 - 独立方法
+   */
+  setupMP4BoxCallbacks() {
+    if (!this.mp4boxfile) {
+      console.warn('🚨 [MP4Parser] Cannot setup callbacks: mp4boxfile is null');
+      return;
+    }
+    
+    console.log('🔗 [MP4Parser] Setting up MP4Box callbacks...');
+    
+    // 监听信息解析完成
+    this.mp4boxfile.onReady = (info) => {
+      console.log('🎉 [MP4Parser] MP4Box onReady triggered!', info);
+      this.handleReady(info);
+    };
+
+    // 监听样本数据
+    this.mp4boxfile.onSamples = (id, user, samples) => {
+      this.handleSamples(id, user, samples);
+    };
+
+    // 监听错误
+    this.mp4boxfile.onError = (error) => {
+      console.error('❌ [MP4Parser] MP4Box error:', error);
+      if (this.onError) {
+        this.onError(error);
+      }
+    };
+    
+    console.log('✅ [MP4Parser] MP4Box callbacks set up successfully');
+  }
+
+  /**
    * 初始化解析器
    */
   init() {
     try {
       // 如果已经初始化，直接返回
       if (this.mp4boxfile) {
+        console.log('🔄 [MP4Parser] MP4Box already initialized, re-setting callbacks...');
+        this.setupMP4BoxCallbacks();
         return;
       }
+
+      console.log('🏗️ [MP4Parser] Creating new MP4Box instance...');
 
       // 获取MP4Box库
       const MP4BoxLib = getMP4Box();
@@ -87,28 +124,15 @@ export class MP4Parser {
         throw new Error('Failed to create MP4Box file instance');
       }
       
-      // 监听信息解析完成
-      this.mp4boxfile.onReady = (info) => {
-        this.handleReady(info);
-      };
-
-      // 监听样本数据
-      this.mp4boxfile.onSamples = (id, user, samples) => {
-        this.handleSamples(id, user, samples);
-      };
-
-      // 监听错误
-      this.mp4boxfile.onError = (error) => {
-        console.error('MP4Box error:', error);
-        if (this.onError) {
-          this.onError(error);
-        }
-      };
+      console.log('✅ [MP4Parser] MP4Box instance created successfully');
+      
+      // 设置回调
+      this.setupMP4BoxCallbacks();
 
       // 设置流式加载器回调
       this.setupStreamLoader();
 
-      console.log('MP4 parser initialized with streaming support');
+      console.log('✅ [MP4Parser] MP4 parser initialized with streaming support');
       
     } catch (error) {
       console.error('Failed to initialize MP4 parser:', error);
@@ -296,6 +320,11 @@ export class MP4Parser {
       this.bufferOffset += arrayBuffer.byteLength;
 
       console.log('⬆️ [MP4Parser] Calling mp4boxfile.appendBuffer...');
+      console.log('🔍 [MP4Parser] MP4Box callback state before append:', {
+        hasOnReady: typeof this.mp4boxfile?.onReady === 'function',
+        hasOnError: typeof this.mp4boxfile?.onError === 'function',
+        onReadyCallback: this.mp4boxfile?.onReady?.toString().substring(0, 100)
+      });
       
       // 添加到MP4Box
       const nextExpectedOffset = this.mp4boxfile.appendBuffer(arrayBuffer);
